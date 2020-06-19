@@ -9,14 +9,14 @@ fn loud() {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let maybe_mode = args.get(1);
-    match maybe_mode {
-        Some(mode) => match mode.as_str() {
+    if let Some(mode) = args.get(1) {
+        match mode.as_str() {
             "loud" => loud(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
-        },
-        None => println!("Give flag. Maybe like 'loud' or something.")
+        }
+    } else {
+        println!("Give flag. Maybe like 'loud' or something.")
     }
 }
