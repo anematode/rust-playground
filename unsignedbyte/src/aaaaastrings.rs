@@ -18,3 +18,19 @@ pub fn stringsrntfunsmhmh(){
 
 	println!("{:?}", (std::mem::size_of_val(&lessssss), lessssss.capacity()));
 }
+
+
+pub fn thsisnotasrtring(){
+	let mut vectuur:Vec<usize> = vec![1, 3, 4, 5, 6, 7, 8, 9, 10, 2, 6];
+
+	let notavec:[usize; 5] = [1, 2, 3, 4, 5];
+
+	println!("{:?}", (&vectuur, notavec));
+
+	vectuur.pop();
+	vectuur.push(69);
+
+	let slicism = &vectuur[1..5];
+
+	println!("{:?}", (&vectuur, &slicism));
+}

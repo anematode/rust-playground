@@ -6,4 +6,5 @@ fn main() {
 	let eggs:String = lib::eggman(5);
 	println!("{}", eggs);
 	aaaaastrings::stringsrntfunsmhmh();
+	aaaaastrings::thsisnotasrtring();
 }
