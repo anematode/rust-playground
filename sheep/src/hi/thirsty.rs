@@ -12,6 +12,10 @@ pub fn gutchen() -> i8 {
     -3
 }
 
+/// This (and intro_ducir) PASS ON ownership. If it used, say, a pointer, then scope ends and
+/// String reference DIES.
+///
+/// *(yes I am putting this in documentation)*
 fn privadaaaaa() -> String {
     String::from("sity")
 }
