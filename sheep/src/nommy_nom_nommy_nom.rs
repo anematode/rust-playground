@@ -3,74 +3,101 @@ use std::fs;
 mod parser {
     use nom::{
         branch::alt,
-        bytes::complete::tag,
-        character::complete::{alpha1, char, digit1, multispace0, multispace1 as s, one_of},
-        combinator::{cut, map, map_res, opt},
-        error::{context, VerboseError},
-        multi::many0,
+        bytes::complete::{tag, is_a, is_not, take_while},
+        character::complete::{char, multispace0, multispace1 as s},
+        combinator::map,
+        error::VerboseError,
+        multi::separated_list,
+        number::complete::le_i32,
         sequence::{delimited, preceded, terminated, tuple},
-        IResult, Parser,
+        IResult,
+        Err,
     };
 
-    type Out<OutType, 'a> = IResult<&'a str, OutType, VerboseError<&'a str>>
+    type Out<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 
-    pub fn parse_expr<'a>(input: &'a str) -> Result<Expr, VerboseError<&'a str>> {
+    // TODO: Better handle the error output in this function
+    pub fn parse_expr<'a>(input: &'a str) -> Result<Vec<Command>, Err<VerboseError<&'a str>>> {
         match main(input) {
             Ok((_, output)) => Ok(output),
-            Err(err) => Err(err)
+            Err(err) => Err(err),
         }
     }
 
-    fn reflexive_pronoun<'a>(input: &'a str) -> Out<&'a str, 'a> {
-        alt((
+    // Idk how to discard values so will just use false
+    fn possessive_pronoun<'a>(input: &'a str) -> Out<'a, bool> {
+        map(alt((
+            tag("her"),
+            tag("their"),
+            tag("his"),
+        )), |_| false)(input)
+    }
+
+    fn reflexive_pronoun<'a>(input: &'a str) -> Out<'a, bool> {
+        map(alt((
             tag("herself"),
             tag("themself"),
             tag("himself"),
-        ))(input)
+        )), |_| false)(input)
     }
 
     pub enum Type {
         Int,
     }
 
-    fn parse_type<'a>(input: &'a str) -> Out<Type, 'a> {
+    fn parse_type<'a>(input: &'a str) -> Out<'a, Type> {
         alt((
-            map(tag("Integer"), |_| Type::Int)
+            map(tag("Intellectual"), |_| Type::Int),
+            map(tag("Intellectual"), |_| Type::Int), // HACK
         ))(input)
     }
 
-    fn parse_varname<'a>(input: &'a str) -> Out<&String, 'a> {
-        tuple((
+    fn parse_varname<'a>(input: &'a str) -> Out<'a, &str> {
+        map(tuple((
             is_a("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
-            take_while(is_lowercase),
-        ))(input)
+            take_while(|c: char| c.is_lowercase()),
+        )), |(char, rest): (&str, &str)| {
+            let var_name = String::from(rest);
+            var_name.insert_str(0, char);
+            var_name.as_str()
+        })(input)
     }
 
-    pub enum Command {
-        MakeVar(&String, Type),
-        Add(&String, &String, &String),
-        Log(&String),
-        Chain(&Vec<Command>),
+    pub enum Value {
+        Int(i32),
     }
 
-    fn parse_sub_command<'a>(input: &'a str) -> Out<Command, 'a> {
+    pub enum Command<'a> {
+        MakeVar(&'a str, Type),
+        SetInt(&'a str, i32),
+        Add(&'a str, &'a str, &'a str),
+        Log(&'a str),
+        Chain(&'a Vec<Command<'a>>),
+        DoNothing,
+    }
+
+    fn parse_sub_command<'a>(input: &'a str) -> Out<'a, Command> {
         alt((
             map(tuple((
                 preceded(tuple((tag("consider"), s,)), parse_varname),
                 preceded(tuple((char(','), s, tag("an"), s)), parse_type),
-                opt(preceded((
-                    char(','), s, tag("who"), s, tag("finds"), s, reflexive_pronoun,
-                    tag("worth"), s
-                ), alt((
-                    map(tuple((tag("1"), s, tag("unit"))), |_| 1),
-                    map(tuple((le_i32, s, tag("units"))), |(n, ..)| n),
-                )))),
+                map(alt((
+                    preceded(tuple((
+                        char(','), s, tag("who"), s, tag("finds"), s, reflexive_pronoun,
+                        tag("worth"), s
+                    )), map(alt((
+                        map(tuple((tag("1"), s, tag("unit"))), |_| Value::Int(1)),
+                        map(terminated(le_i32, tuple((s, tag("units")))), |n| Value::Int(n)),
+                    )), |v: Value| v)), // Tell Rust that it should be a Value at this point
+                )), |v: Option<Value>| v),
             )), |(name, var_type, value)| match value {
-                Some(value) => Command::Chain(vec![
+                Some(value) => Command::Chain(&vec![
                     Command::MakeVar(name, var_type),
-                    Command::SetVar(name, value)
+                    match value {
+                        Value::Int(n) => Command::SetInt(name, n)
+                    },
                 ]),
-                None => Command::MakeVar(name, type)
+                None => Command::MakeVar(name, var_type)
             }),
             map(tuple((
                 preceded(tuple((tag("mash"), s)), parse_varname),
@@ -80,17 +107,28 @@ mod parser {
         ))(input)
     }
 
-    fn parse_command<'a>(input: &'a str) -> Out<Command, 'a> {
+    fn parse_command<'a>(input: &'a str) -> Out<'a, Command> {
         terminated(alt((
-            preceded(tuple((tag("Let"), s, tag("us"), tuple((s, opt("also"))), s)), parse_sub_command),
-            map(terminated(preceded((tag("Allow"), s), parse_varname), tuple((
-                tag("declare"), s, possessive_pronoun, s, tag("worth")
-            ))), |varname| Command::Log(varname)),
-        )), char('.'))(input)
+            preceded(tuple((tag("Let"), s, tag("us"), tuple((s, tag("also"))), s)), parse_sub_command),
+            map(delimited(
+                tuple((tag("Allow"), s)),
+                parse_varname,
+                tuple((tag("declare"), s, possessive_pronoun, s, tag("worth"))),
+            ), |varname| Command::Log(varname)),
+        )), tuple((char('.'), s)))(input)
     }
 
-    fn main<'a>(input: &'a str) -> Out<&Vec<Command>, 'a> {
-        //
+    fn parse_comment<'a>(input: &'a str) -> Out<'a, Command> {
+        map(delimited(
+            char('('),
+            alt((is_not(")"), parse_comment)),
+            char(')')
+        // Tells Rust that the output from delimited etc can be a &str rather than a command
+        ), |_: &str| Command::DoNothing)(input)
+    }
+
+    fn main<'a>(input: &'a str) -> Out<'a, Vec<Command>> {
+        delimited(multispace0, separated_list(s, alt((parse_command, parse_comment))), multispace0)(input)
     }
 }
 
