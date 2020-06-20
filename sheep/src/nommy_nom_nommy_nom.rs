@@ -83,6 +83,10 @@ mod parser {
     // type Bertha<'a> = fn(input: &'a str) -> Out<'a, Value>;
     // type Erg<'a> = fn(input: &'a str) -> Out<'a, i32>;
 
+    // fn fufu<'a>(input: &'a str) -> Out<'a, Value> {
+    //     map(terminated(|i: &'a str| le_i32(i), tuple((s, tag("units")))), |n: i32| Value::Int(n))(input)
+    // }
+
     // error[E0277]: expected a `std::ops::Fn<(&str,)>` closure, found `impl std::ops::Fn<(&[u8],)>`
     //     --> src\nommy_nom_nommy_nom.rs:98:13
     fn parse_int_value<'a>(input: &'a str) -> Out<'a, Value> {
@@ -103,10 +107,29 @@ mod parser {
         // expecting a tuple, so `alt` is expecting a &str tuple, but there is instead a &[u8]
         // tuple. Or maybe calling ...(input) is expecting a &str tuple. Also, why does the tuple
         // only have one item?
+
+        // Apparently wrong because size not known at compile time or something
+        // let eggest: (dyn Fn(&str,) -> Out<'a, Value>, dyn Fn(&str,) -> Out<'a, Value>) = (
+
+        // Apparently wrong bc can't use impl for var type; I guess I need to use the actual implementor
+        // let eggest: (impl Fn<(&str,)>, impl Fn<(&[u8],)>) = (
+
+        // (impl std::ops::Fn<(&str,)>, for<'a> fn(&'a str) -> std::result::Result<(&'a str,
+        // nommy_nom_nommy_nom::parser::Value), nom::internal::Err<nom::error::VerboseError<&'a
+        // str>>> {nommy_nom_nommy_nom::parser::fufu})
+        // ... -> Result<(&'a str, Value), Err>
+        // ... for<'a> fn(&'a str) -> Out<'a, Value>
+        // (Fn(&str,) -> Output<'a, Value>, Fn(&str,) -> Output<'a, Value>)
+        // let eggest: (Fn(&str,) -> Out<'a, Value>, Fn(&str,) -> Out<'a, Value>) = (
+        // //  ^
+        //     map(tuple((tag("1"), s, tag("unit"))), |_: (&str, &str, &str)| Value::Int(1)),
+        //     fufu,
+        // );
+        // eggest.uh();
         alt((
         //  ^
             map(tuple((tag("1"), s, tag("unit"))), |_: (&str, &str, &str)| Value::Int(1)),
-            map(terminated(le_i32, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
+            map(terminated(|i: &'a str| -> Out<'a, i32> {le_i32(i)}, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
         ))(input)
     //  ^ expected an `Fn<(&str,)>` closure, found `impl std::ops::Fn<(&[u8],)>`
 
