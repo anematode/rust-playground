@@ -1,7 +1,7 @@
 mod hi;
-mod regex_test;
-mod nommy_nom_nommy_nom;
 mod nom_test;
+mod nommy_nom_nommy_nom;
+mod regex_test;
 use std::env;
 
 fn loud() {

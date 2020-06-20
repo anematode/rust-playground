@@ -1,12 +1,7 @@
-use nom::{
-    bytes::complete::tag,
-    character::complete::multispace1 as s,
-    sequence::tuple,
-    IResult,
-};
+use nom::{bytes::complete::tag, character::complete::multispace1 as s, sequence::tuple, IResult};
 
 fn parser<'a>(input: &'a str) -> IResult<&'a str, (&'a str, &'a str)> {
-  tuple((tag("Hello"), s))(input)
+    tuple((tag("Hello"), s))(input)
 }
 
 const DEFAULT_INPUT: &'static str = "Hellp sheep";
