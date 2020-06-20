@@ -1,3 +1,9 @@
+
+/// uau st ring ????
+/// * bruh
+/// omg guys ss tringggy
+/// this rly be doing nothing doe ti
+#[doc = "awegihwo????"]
 pub fn stringsrntfunsmhmh(){
 	let sussusuussusususususss:&str = "eeeeeuuuuuuuuuuuuuuuoobl";
 	let mut lessssss:String = String::from(format!("{} LOL {}", sussusuussusususususss, "u u u u u iiis "));
