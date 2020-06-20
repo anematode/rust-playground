@@ -77,7 +77,24 @@ mod parser {
         DoNothing,
     }
 
+    // type Eee<'a> = fn(input: &'a str) -> Out<'a, &str>;
+    // type Eee2<'a> = fn(input: &'a str) -> Out<'a, (&str, &str)>;
+    // type Eee3<'a> = fn(input: &'a str) -> Out<'a, (&str, &str, &str)>;
+    // type Bertha<'a> = fn(input: &'a str) -> Out<'a, Value>;
+    // type Erg<'a> = fn(input: &'a str) -> Out<'a, i32>;
+
     fn parse_int_value<'a>(input: &'a str) -> Out<'a, Value> {
+        // let one: Eee<'a> = tag("1");
+        // let space: Eee<'a> = s;
+        // let unit: Eee<'a> = tag("unit");
+        // let units: Eee<'a> = tag("units");
+        // let e3: Eee3<'a> = tuple((one, space, unit));
+        // let e2: Eee2<'a> = tuple((space, units));
+        // let b: Bertha<'a> = map(e3, |_: (&str, &str, &str)| Value::Int(1));
+        // let c: Erg<'a> = terminated(le_i32, e2);
+        // let d: Bertha<'a> = map(c, |n: i32| Value::Int(n));
+        // let g: Bertha<'a> = alt((b, d));
+        // g(input)
         alt((
             map(tuple((tag("1"), s, tag("unit"))), |_: (&str, &str, &str)| Value::Int(1)),
             map(terminated(le_i32, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
