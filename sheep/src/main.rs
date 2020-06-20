@@ -1,5 +1,6 @@
 mod hi;
 mod regex_test;
+mod nommy_nom_nommy_nom;
 use std::env;
 
 fn loud() {
@@ -12,7 +13,8 @@ fn main() {
     if let Some(mode) = args.get(1) {
         match mode.as_str() {
             "loud" => loud(),
-            "regex" => regex_test::weee(),
+            "regex" => regex_test::weee(args.get(2)),
+            "nom" => nommy_nom_nommy_nom::yes(args.get(2)),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
