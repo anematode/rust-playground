@@ -1,4 +1,4 @@
-//lol imagine having egg
+///lol imagine having egg
 #[doc = "alternative????"]
 pub fn eggman(eggs:u64) -> String{
 	//!lol i touch
