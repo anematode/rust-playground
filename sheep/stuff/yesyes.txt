@@ -2,4 +2,4 @@ Let us consider Alice, an Intellectual, who finds herself worth 5 units.
 Let us also consider Bob, an Intellectual, who finds himself worth 6 units.
 Let us mash Alice and Bob violently, producing Charles.
 Allow Charles to declare his worth.
-(This should log 11.)
+(This should log 11. (nested parentheses))
