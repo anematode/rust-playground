@@ -7,13 +7,30 @@ mod parser {
         bytes::complete::{tag, is_a, is_not, take_while},
         character::complete::{char, multispace0, multispace1 as s},
         combinator::{map, opt},
-        error::VerboseError,
+        error::{VerboseError, ErrorKind, ParseError, make_error, VerboseErrorKind},
         multi::separated_list,
         number::complete::le_i32,
         sequence::{delimited, preceded, terminated, tuple},
         IResult,
-        Err,
+        Err, // I think this is the same as nom::internal::Err
     };
+
+    // https://github.com/Geal/nom/blob/master/examples/custom_error.rs
+    #[derive(Debug, PartialEq)]
+    pub enum CustomError<I> {
+        MyError,
+        Nom(I, ErrorKind),
+    }
+
+    impl<I> ParseError<I> for CustomError<I> {
+        fn from_error_kind(input: I, kind: ErrorKind) -> Self {
+            CustomError::Nom(input, kind)
+        }
+
+        fn append(_: I, _: ErrorKind, other: Self) -> Self {
+            other
+        }
+    }
 
     type Out<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 
@@ -53,14 +70,22 @@ mod parser {
         ))(input)
     }
 
-    fn parse_varname<'a>(input: &'a str) -> Out<'a, &str> {
+    fn parse_varname<'a>(input: &'a str) -> Out<'a, String> {
         map(tuple((
             is_a("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
             take_while(|c: char| c.is_lowercase()),
-        )), |(char, rest): (&str, &str)| {
-            let var_name = String::from(rest);
-            var_name.insert_str(0, char);
-            var_name.as_str()
+        )), |(char, rest): (&'a str, &'a str)| -> String {
+            // let owned_string: String = String::from(char);
+            // return owned_string + rest
+            let mut var_name = String::with_capacity(char.len() + rest.len());
+            var_name.push_str(char);
+            var_name.push_str(rest);
+            var_name
+            // let var_name_ref: &'a String = &var_name;
+            // var_name_ref
+            // // var_name.as_str()
+            // &var_name[..]
+            // format!("{}{}", char, rest)
         })(input)
     }
 
@@ -68,12 +93,14 @@ mod parser {
         Int(i32),
     }
 
-    pub enum Command<'a> {
-        MakeVar(&'a str, Type),
-        SetInt(&'a str, i32),
-        Add(&'a str, &'a str, &'a str),
-        Log(&'a str),
-        Chain(&'a Vec<Command<'a>>),
+    // Using String because functions cannot return &str (string slices) if a String was made in a
+    // function. https://stackoverflow.com/a/43080280
+    pub enum Command {
+        MakeVar(String, Type),
+        SetInt(String, i32),
+        Add(String, String, String),
+        Log(String),
+        Chain(Vec<Command>),
         DoNothing,
     }
 
@@ -129,7 +156,18 @@ mod parser {
         alt((
         //  ^
             map(tuple((tag("1"), s, tag("unit"))), |_: (&str, &str, &str)| Value::Int(1)),
-            map(terminated(|i: &'a str| -> Out<'a, i32> {le_i32(i)}, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
+            map(terminated(|i: &'a str| -> Out<'a, i32> {
+                // let urg: IResult<&[u8], i32, ParseError<&[u8]>> = le_i32(i.as_bytes());
+                let urg = le_i32::<'a, VerboseError<_>>(i.as_bytes());
+                match urg {
+                    Ok((i, o)) => match str::from_utf8(i) {
+                        Ok(s) => Ok((s, o)),
+                        Err(err) => Err(Err::Error(VerboseError{errors: vec![("e", VerboseErrorKind::Context("eee"))]})),
+                    },
+                    Err(err) => Err(Err::Error(VerboseError{errors: vec![("e", VerboseErrorKind::Context("eee"))]})),
+                    // Err(err) => Err(err),
+                }
+            }, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
         ))(input)
     //  ^ expected an `Fn<(&str,)>` closure, found `impl std::ops::Fn<(&[u8],)>`
 
@@ -162,14 +200,19 @@ mod parser {
                 preceded(tuple((tag("consider"), s,)), parse_varname),
                 preceded(tuple((char(','), s, tag("an"), s)), parse_type),
                 parse_init_value,
-            )), |(name, var_type, value)| match value {
-                Some(value) => Command::Chain(&vec![
-                    Command::MakeVar(name, var_type),
-                    match value {
-                        Value::Int(n) => Command::SetInt(name, n)
+            )), |(name, var_type, value)| {
+                let name_str = String::from(name);
+                match value {
+                    Some(value) => {
+                        Command::Chain(vec![
+                            Command::MakeVar(name_str.clone(), var_type),
+                            match value {
+                                Value::Int(n) => Command::SetInt(name_str, n)
+                            },
+                        ])
                     },
-                ]),
-                None => Command::MakeVar(name, var_type)
+                    None => Command::MakeVar(name_str, var_type)
+                }
             }),
             map(tuple((
                 preceded(tuple((tag("mash"), s)), parse_varname),
@@ -186,7 +229,7 @@ mod parser {
                 tuple((tag("Allow"), s)),
                 parse_varname,
                 tuple((tag("declare"), s, possessive_pronoun, s, tag("worth"))),
-            ), |varname| Command::Log(varname)),
+            ), |varname| Command::Log(String::from(varname))),
         )), tuple((char('.'), s)))(input)
     }
 
