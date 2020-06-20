@@ -26,7 +26,13 @@ fn main() {
             .read_line(&mut guess)
     	.expect("An error occurred!");
 
-        let guess: u32 = guess.trim().parse().expect("Please enter a number!");
+        let guess: u32 = match guess.trim().parse() {
+            Ok(num) => num,
+            Err(_) => {
+                println!("Please enter in a number!");
+                continue;
+            },
+        };
 
         match guess.cmp(&secret_number) {
         	Ordering::Less => print!("Too small! "),
@@ -41,8 +47,8 @@ fn main() {
 
         if guesses <= 0 {
             println!("Sorry, you lost!");
-            println!("In case you were wondering, the number was {}.", secret_number)
-            
+            println!("In case you were wondering, the number was {}.", secret_number);
+
             break;
         } else {
             println!("Try again!");
