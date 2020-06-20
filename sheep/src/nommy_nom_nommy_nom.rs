@@ -21,12 +21,21 @@ mod parser {
         }
     }
 
-    fn reflexive_pronoun<'a>(input: &'a str) -> Out<&'a str, 'a> {
-        alt((
+    // Idk how to discard values so will just use false
+    fn possessive_pronoun<'a>(input: &'a str) -> Out<bool, 'a> {
+        map(alt((
+            tag("her"),
+            tag("their"),
+            tag("his"),
+        )), |_| false)(input)
+    }
+
+    fn reflexive_pronoun<'a>(input: &'a str) -> Out<bool, 'a> {
+        map(alt((
             tag("herself"),
             tag("themself"),
             tag("himself"),
-        ))(input)
+        )), |_| false)(input)
     }
 
     pub enum Type {
@@ -83,14 +92,20 @@ mod parser {
     fn parse_command<'a>(input: &'a str) -> Out<Command, 'a> {
         terminated(alt((
             preceded(tuple((tag("Let"), s, tag("us"), tuple((s, opt("also"))), s)), parse_sub_command),
-            map(terminated(preceded((tag("Allow"), s), parse_varname), tuple((
-                tag("declare"), s, possessive_pronoun, s, tag("worth")
-            ))), |varname| Command::Log(varname)),
-        )), char('.'))(input)
+            map(delimited(
+                tuple((tag("Allow"), s)),
+                parse_varname,
+                tuple((tag("declare"), s, possessive_pronoun, s, tag("worth"))),
+            ), |varname| Command::Log(varname)),
+        )), tuple((char('.'), s)))(input)
+    }
+
+    fn parse_comment<'a>(input: &'a str) -> Out<bool, 'a> {
+        map(delimited(char('('), alt(is_not(")"), parse_comment), char(')')), |_| false)
     }
 
     fn main<'a>(input: &'a str) -> Out<&Vec<Command>, 'a> {
-        //
+        separated_list(alt(parse_command, parse_comment))(input)
     }
 }
 
