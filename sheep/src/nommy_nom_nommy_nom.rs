@@ -83,6 +83,8 @@ mod parser {
     // type Bertha<'a> = fn(input: &'a str) -> Out<'a, Value>;
     // type Erg<'a> = fn(input: &'a str) -> Out<'a, i32>;
 
+    // error[E0277]: expected a `std::ops::Fn<(&str,)>` closure, found `impl std::ops::Fn<(&[u8],)>`
+    //     --> src\nommy_nom_nommy_nom.rs:98:13
     fn parse_int_value<'a>(input: &'a str) -> Out<'a, Value> {
         // let one: Eee<'a> = tag("1");
         // let space: Eee<'a> = s;
@@ -95,10 +97,24 @@ mod parser {
         // let d: Bertha<'a> = map(c, |n: i32| Value::Int(n));
         // let g: Bertha<'a> = alt((b, d));
         // g(input)
+
+        // I think this is describing what `alt` is returning, but idk why the carets point at the
+        // tuple. It seems the tuple is being seen as a &[u8] (byte array), but calling--- no. It's
+        // expecting a tuple, so `alt` is expecting a &str tuple, but there is instead a &[u8]
+        // tuple. Or maybe calling ...(input) is expecting a &str tuple. Also, why does the tuple
+        // only have one item?
         alt((
+        //  ^
             map(tuple((tag("1"), s, tag("unit"))), |_: (&str, &str, &str)| Value::Int(1)),
             map(terminated(le_i32, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
         ))(input)
+    //  ^ expected an `Fn<(&str,)>` closure, found `impl std::ops::Fn<(&[u8],)>`
+
+        // = help: the trait `std::ops::Fn<(&str,)>` is not implemented for `impl
+        // std::ops::Fn<(&[u8],)>`
+        // = note: required because of the requirements on the impl of `nom::branch::Alt<&str,
+        // nommy_nom_nommy_nom::parser::Value, _>` for `(impl std::ops::Fn<(&str,)>, impl
+        // std::ops::Fn<(&[u8],)>)`
     }
 
     // Tell Rust that it should be an Option<Value> at this point
