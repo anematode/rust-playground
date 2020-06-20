@@ -1,5 +1,5 @@
 mod hi;
-
+mod regex_test;
 use std::env;
 
 fn loud() {
@@ -12,6 +12,7 @@ fn main() {
     if let Some(mode) = args.get(1) {
         match mode.as_str() {
             "loud" => loud(),
+            "regex" => regex_test::weee(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
