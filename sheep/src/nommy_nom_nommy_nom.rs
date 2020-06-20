@@ -8,20 +8,31 @@ mod parser {
         bytes::complete::{tag, is_a, is_not, take_while},
         character::complete::{char, multispace0, multispace1 as s, digit1},
         combinator::{map, opt, map_res},
-        error::VerboseError,
-        multi::separated_list,
+        error::{VerboseError, context, convert_error},
+        multi::separated_nonempty_list,
         sequence::{delimited, preceded, terminated, tuple},
         IResult,
         Err, // I think this is the same as nom::internal::Err
+        Needed,
     };
 
     type Out<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 
     // TODO: Better handle the error output in this function
-    pub fn parse<'a>(input: &'a str) -> Result<Vec<Command>, Err<VerboseError<&'a str>>> {
+    pub fn parse<'a>(input: &'a str) -> Result<Vec<Command>, String> {
         match main(input) {
-            Ok((_, output)) => Ok(output),
-            Err(err) => Err(err),
+            Ok((inp, output)) => {
+                println!("{}", inp);
+                Ok(output)
+            },
+            Err(err) => Err(match err {
+                Err::Incomplete(needed) => match needed {
+                    Needed::Unknown => "Need more data, but unsure how much.".to_string(),
+                    Needed::Size(size) => format!("Need  precisely{} more data.", size),
+                },
+                Err::Error(verbose) => convert_error(input, verbose),
+                Err::Failure(verbose) => convert_error(input, verbose),
+            }),
         }
     }
 
@@ -56,14 +67,14 @@ mod parser {
     }
 
     fn parse_type<'a>(input: &'a str) -> Out<'a, Type> {
-        alt((
+        context("type", alt((
             map(tag("Intellectual"), |_| Type::Int),
             map(tag("Intellectual"), |_| Type::Int), // HACK
-        ))(input)
+        )))(input)
     }
 
     fn parse_varname<'a>(input: &'a str) -> Out<'a, String> {
-        map(tuple((
+        context("variable name", map(tuple((
             is_a("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
             take_while(|c: char| c.is_lowercase()),
         )), |(char, rest): (&'a str, &'a str)| -> String {
@@ -78,7 +89,7 @@ mod parser {
             // // var_name.as_str()
             // &var_name[..]
             // format!("{}{}", char, rest)
-        })(input)
+        }))(input)
     }
 
     #[derive(Debug)]
@@ -182,7 +193,7 @@ mod parser {
     fn parse_init_value<'a>(input: &'a str) -> Out<'a, Option<Value>> {
         // `alt` does not support just one case, but just know that in the future, swap `opt` with
         // `alt` and wrap the existing case in a tuple.
-        opt(preceded(tuple((
+        context("initial value", opt(preceded(tuple((
             char(','), s, tag("who"), s, tag("finds"), s, reflexive_pronoun,
             tag("worth"), s
         )), alt((
@@ -202,7 +213,7 @@ mod parser {
             //         Err(err) => Err(err),
             //     }
             // }, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
-        ))))(input)
+        )))))(input)
         // |i: &str| -> Out<'a, Value> {
         //     alt((
         //         map(tuple((tag("1"), s, tag("unit"))), |_| Value::Int(1)),
@@ -212,7 +223,7 @@ mod parser {
     }
 
     fn parse_sub_command<'a>(input: &'a str) -> Out<'a, Command> {
-        alt((
+        context("\"Let us (also)...\" command", alt((
             map(tuple((
                 preceded(tuple((tag("consider"), s,)), parse_varname),
                 preceded(tuple((char(','), s, tag("an"), s)), parse_type),
@@ -236,32 +247,40 @@ mod parser {
                 preceded(tuple((s, tag("and"), s)), parse_varname),
                 preceded(tuple((s, tag("violently,"), s, tag("producing"), s)), parse_varname),
             )), |(a, b, output)| Command::Add(a, b, output))
-        ))(input)
+        )))(input)
     }
 
     fn parse_command<'a>(input: &'a str) -> Out<'a, Command> {
-        terminated(alt((
-            preceded(tuple((tag("Let"), s, tag("us"), tuple((s, tag("also"))), s)), parse_sub_command),
-            map(delimited(
+        context("command", terminated(alt((
+            context("Let us (also) ...", preceded(tuple((
+                tag("Let"), s, tag("us"), opt(tuple((s, tag("also")))), s
+            )), parse_sub_command)),
+            context("Allow ... to declare ... worth", map(delimited(
                 tuple((tag("Allow"), s)),
                 parse_varname,
                 tuple((tag("declare"), s, possessive_pronoun, s, tag("worth"))),
-            ), |varname| Command::Log(String::from(varname))),
-        )), tuple((char('.'), s)))(input)
+            ), |varname| Command::Log(String::from(varname)))),
+        )), tuple((char('.'), s))))(input)
     }
 
     fn parse_comment<'a>(input: &'a str) -> Out<'a, Command> {
-        map(delimited(
+        context("comment", map(delimited(
             char('('),
-            alt((map(is_not(")"), |_| Command::DoNothing), parse_comment)),
+            alt((parse_comment, map(is_not(")"), |_| Command::DoNothing))),
             char(')')
         // Tells Rust that the output from delimited etc can be a &str rather than a command
-        ), |_| Command::DoNothing)(input)
+        ), |_| Command::DoNothing))(input)
     }
 
     fn main<'a>(input: &'a str) -> Out<'a, Vec<Command>> {
-        delimited(multispace0, separated_list(s, alt((parse_command, parse_comment))), multispace0)(input)
+        context("main", delimited(multispace0, separated_nonempty_list(s, alt((
+            parse_command, parse_comment
+        ))), multispace0))(input)
     }
+
+    // pub fn debug<'a>(input: &'a str) {
+    //     println!("[debug] {:?}", dbg_dmp(main, "uh")(input))
+    // }
 }
 
 // Relative to sheep/ (current directory)
@@ -272,7 +291,8 @@ pub fn yes(maybe_path: Option<&String>) {
     let path = maybe_path.unwrap_or(&default_path);
     let input = fs::read_to_string(path).unwrap();
     match parser::parse(&input) {
-        Ok(parsed) => println!("[:)] {:?}", parsed),
+        Ok(parsed) => println!("[:)] {:?} (length {})", parsed, parsed.len()),
         Err(err) => println!("[:(] {}", err),
     };
+    // parser::debug(&input);
 }
