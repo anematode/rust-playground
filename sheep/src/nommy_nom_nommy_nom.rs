@@ -2,40 +2,23 @@ use std::fs;
 
 mod parser {
     use std::str;
+    // use std::fmt;
     use nom::{
         branch::alt,
         bytes::complete::{tag, is_a, is_not, take_while},
-        character::complete::{char, multispace0, multispace1 as s},
-        combinator::{map, opt},
-        error::{VerboseError, ErrorKind, ParseError, make_error, VerboseErrorKind},
+        character::complete::{char, multispace0, multispace1 as s, digit1},
+        combinator::{map, opt, map_res},
+        error::VerboseError,
         multi::separated_list,
-        number::complete::le_i32,
         sequence::{delimited, preceded, terminated, tuple},
         IResult,
         Err, // I think this is the same as nom::internal::Err
     };
 
-    // https://github.com/Geal/nom/blob/master/examples/custom_error.rs
-    #[derive(Debug, PartialEq)]
-    pub enum CustomError<I> {
-        MyError,
-        Nom(I, ErrorKind),
-    }
-
-    impl<I> ParseError<I> for CustomError<I> {
-        fn from_error_kind(input: I, kind: ErrorKind) -> Self {
-            CustomError::Nom(input, kind)
-        }
-
-        fn append(_: I, _: ErrorKind, other: Self) -> Self {
-            other
-        }
-    }
-
     type Out<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 
     // TODO: Better handle the error output in this function
-    pub fn parse_expr<'a>(input: &'a str) -> Result<Vec<Command>, Err<VerboseError<&'a str>>> {
+    pub fn parse<'a>(input: &'a str) -> Result<Vec<Command>, Err<VerboseError<&'a str>>> {
         match main(input) {
             Ok((_, output)) => Ok(output),
             Err(err) => Err(err),
@@ -59,8 +42,17 @@ mod parser {
         )), |_| false)(input)
     }
 
+    #[derive(Debug)]
     pub enum Type {
         Int,
+    }
+
+    impl ToString for Type {
+        fn to_string(&self) -> String {
+            match self {
+                Type::Int => String::from("Int"),
+            }
+        }
     }
 
     fn parse_type<'a>(input: &'a str) -> Out<'a, Type> {
@@ -89,12 +81,22 @@ mod parser {
         })(input)
     }
 
+    #[derive(Debug)]
     pub enum Value {
         Int(i32),
     }
 
+    // impl ToString for Value {
+    //     fn to_string(&self) -> String {
+    //         match self {
+    //             Value::Int(value) => format!("Int({})", value),
+    //         }
+    //     }
+    // }
+
     // Using String because functions cannot return &str (string slices) if a String was made in a
     // function. https://stackoverflow.com/a/43080280
+    #[derive(Debug)]
     pub enum Command {
         MakeVar(String, Type),
         SetInt(String, i32),
@@ -103,6 +105,19 @@ mod parser {
         Chain(Vec<Command>),
         DoNothing,
     }
+
+    // impl ToString for Command {
+    //     fn to_string(&self) -> String {
+    //         match self {
+    //             Command::MakeVar(name, var_type) => format!("MakeVar({} of type {})", name, var_type),
+    //             Command::SetInt(name, value) => format!("SetInt({} = {})", name, value),
+    //             Command::Add(a, b, output) => format!("Add({} + {} -> {})", a, b, output),
+    //             Command::Log(name) => format!("Log({})", name),
+    //             Command::Chain(commands) => format!("Chain(\n  {}\n)", (&commands[..]).join("\n  ")),
+    //             Command::DoNothing => String::new(),
+    //         }
+    //     }
+    // }
 
     // type Eee<'a> = fn(input: &'a str) -> Out<'a, &str>;
     // type Eee2<'a> = fn(input: &'a str) -> Out<'a, (&str, &str)>;
@@ -116,7 +131,7 @@ mod parser {
 
     // error[E0277]: expected a `std::ops::Fn<(&str,)>` closure, found `impl std::ops::Fn<(&[u8],)>`
     //     --> src\nommy_nom_nommy_nom.rs:98:13
-    fn parse_int_value<'a>(input: &'a str) -> Out<'a, Value> {
+    // fn parse_int_value<'a>(input: &'a str) -> Out<'a, Value> {
         // let one: Eee<'a> = tag("1");
         // let space: Eee<'a> = s;
         // let unit: Eee<'a> = tag("unit");
@@ -153,22 +168,7 @@ mod parser {
         //     fufu,
         // );
         // eggest.uh();
-        alt((
-        //  ^
-            map(tuple((tag("1"), s, tag("unit"))), |_: (&str, &str, &str)| Value::Int(1)),
-            map(terminated(|i: &'a str| -> Out<'a, i32> {
-                // let urg: IResult<&[u8], i32, ParseError<&[u8]>> = le_i32(i.as_bytes());
-                let urg = le_i32::<'a, VerboseError<_>>(i.as_bytes());
-                match urg {
-                    Ok((i, o)) => match str::from_utf8(i) {
-                        Ok(s) => Ok((s, o)),
-                        Err(err) => Err(Err::Error(VerboseError{errors: vec![("e", VerboseErrorKind::Context("eee"))]})),
-                    },
-                    Err(err) => Err(Err::Error(VerboseError{errors: vec![("e", VerboseErrorKind::Context("eee"))]})),
-                    // Err(err) => Err(err),
-                }
-            }, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
-        ))(input)
+        // (input)
     //  ^ expected an `Fn<(&str,)>` closure, found `impl std::ops::Fn<(&[u8],)>`
 
         // = help: the trait `std::ops::Fn<(&str,)>` is not implemented for `impl
@@ -176,7 +176,7 @@ mod parser {
         // = note: required because of the requirements on the impl of `nom::branch::Alt<&str,
         // nommy_nom_nommy_nom::parser::Value, _>` for `(impl std::ops::Fn<(&str,)>, impl
         // std::ops::Fn<(&[u8],)>)`
-    }
+    // }
 
     // Tell Rust that it should be an Option<Value> at this point
     fn parse_init_value<'a>(input: &'a str) -> Out<'a, Option<Value>> {
@@ -185,7 +185,24 @@ mod parser {
         opt(preceded(tuple((
             char(','), s, tag("who"), s, tag("finds"), s, reflexive_pronoun,
             tag("worth"), s
-        )), parse_int_value))(input)
+        )), alt((
+        //  ^
+            map(tuple((tag("1"), s, tag("unit"))), |_: (&str, &str, &str)| Value::Int(1)),
+            map(terminated(map_res(digit1, |digits: &'a str| digits.parse::<i32>()), tuple((s, tag("units")))), |n: i32| Value::Int(n)),
+            // map(terminated(|i: &'a str| -> Out<'a, i32> {
+            //     // let urg: IResult<&[u8], i32, ParseError<&[u8]>> = le_i32(i.as_bytes());
+            //     let urg = le_i32::<'a, VerboseError<&'a [u8]>>(i.as_bytes());
+            //     // VerboseError is a (implements) ParseError
+            //     match urg {
+            //         Ok((i, o)) => match str::from_utf8(i) {
+            //             Ok(s) => Ok((s, o)),
+            //             Err(err) => Err(Err::Error(VerboseError{errors: vec![("", VerboseErrorKind::Context("Couldn't parse as "))]})),
+            //         },
+            //         // Err(err) => Err(Err::Error(VerboseError{errors: vec![("", VerboseErrorKind::Context("eee"))]})),
+            //         Err(err) => Err(err),
+            //     }
+            // }, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
+        ))))(input)
         // |i: &str| -> Out<'a, Value> {
         //     alt((
         //         map(tuple((tag("1"), s, tag("unit"))), |_| Value::Int(1)),
@@ -254,5 +271,8 @@ pub fn yes(maybe_path: Option<&String>) {
     let default_path = String::from(DEFAULT_PATH);
     let path = maybe_path.unwrap_or(&default_path);
     let input = fs::read_to_string(path).unwrap();
-    println!("{}", input);
+    match parser::parse(&input) {
+        Ok(parsed) => println!("[:)] {:?}", parsed),
+        Err(err) => println!("[:(] {}", err),
+    };
 }
