@@ -1,5 +1,66 @@
 use std::fs;
 
+mod my_verbose {
+    use nom::error::{ParseError, VerboseError, VerboseErrorKind, ErrorKind};
+
+    pub trait AsPtrable {
+        fn as_ptr(&self) -> *const u8;
+    }
+
+    /// Idk how to add a method properly in Rust so will just copy code
+    // #[cfg(feature = "alloc")]
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct MyVerboseError<'a> {
+        /// list of errors accumulated by `VerboseError`, containing the affected
+        /// part of input data, and some context
+        pub errors: Vec<(&'a str, VerboseErrorKind)>,
+    }
+
+    impl<'a> MyVerboseError<'a> {
+        pub fn as_verbose_error(self) -> VerboseError<&'a str> {
+            VerboseError {errors: self.errors}
+        }
+    }
+
+    // #[cfg(feature = "alloc")]
+    impl<'a> ParseError<&'a str> for MyVerboseError<'a> {
+        fn from_error_kind(input: &'a str, kind: ErrorKind) -> Self {
+            MyVerboseError {
+                errors: vec![(input, VerboseErrorKind::Nom(kind))],
+            }
+        }
+
+        fn append(input: &'a str, kind: ErrorKind, mut other: Self) -> Self {
+            other.errors.push((input, VerboseErrorKind::Nom(kind)));
+            other
+        }
+
+        fn from_char(input: &'a str, c: char) -> Self {
+            MyVerboseError {
+                errors: vec![(input, VerboseErrorKind::Char(c))],
+            }
+        }
+
+        fn add_context(input: &'a str, ctx: &'static str, mut other: Self) -> Self {
+            other.errors.push((input, VerboseErrorKind::Context(ctx)));
+            other
+        }
+
+        /// https://github.com/Geal/nom/issues/887#issuecomment-476109207
+        /// https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=b9c3c6037ff30de18a2f7942331168aa
+        /// take the error from the branch that went the farthest
+        fn or(self, other: Self) -> Self {
+            let p1 = self.errors.first().unwrap().0.as_ptr();
+            let p2 = other.errors.first().unwrap().0.as_ptr();
+            if p1 <= p2 {
+                other
+            } else {
+                self
+            }
+        }
+    }
+}
+
 mod parser {
     use std::str;
     // use std::fmt;
@@ -8,15 +69,16 @@ mod parser {
         bytes::complete::{tag, is_a, is_not, take_while},
         character::complete::{char, multispace0, multispace1 as s, digit1},
         combinator::{map, opt, map_res},
-        error::{VerboseError, context, convert_error},
+        error::{context, convert_error},
         multi::separated_nonempty_list,
         sequence::{delimited, preceded, terminated, tuple},
         IResult,
         Err, // I think this is the same as nom::internal::Err
         Needed,
     };
+    use super::my_verbose::MyVerboseError;
 
-    type Out<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
+    type Out<'a, T> = IResult<&'a str, T, MyVerboseError<'a>>;
 
     // TODO: Better handle the error output in this function
     pub fn parse<'a>(input: &'a str) -> Result<Vec<Command>, String> {
@@ -30,8 +92,8 @@ mod parser {
                     Needed::Unknown => "Need more data, but unsure how much.".to_string(),
                     Needed::Size(size) => format!("Need  precisely{} more data.", size),
                 },
-                Err::Error(verbose) => convert_error(input, verbose),
-                Err::Failure(verbose) => convert_error(input, verbose),
+                Err::Error(verbose) => convert_error(input, verbose.as_verbose_error()),
+                Err::Failure(verbose) => convert_error(input, verbose.as_verbose_error()),
             }),
         }
     }
