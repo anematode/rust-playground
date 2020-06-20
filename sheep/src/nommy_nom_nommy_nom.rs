@@ -67,11 +67,11 @@ mod parser {
     // use std::fmt;
     use nom::{
         branch::alt,
-        bytes::complete::{tag, is_a, is_not, take_while},
+        bytes::complete::{tag, is_a, take_while},
         character::complete::{char, multispace0, multispace1 as s, digit1},
         combinator::{map, opt, map_res},
         error::{context, convert_error},
-        multi::{separated_list, many_till},
+        multi::{many_till, many0},
         sequence::{delimited, preceded, terminated, tuple},
         IResult,
         Err, // I think this is the same as nom::internal::Err
@@ -329,9 +329,11 @@ mod parser {
     }
 
     fn parse_comment<'a>(input: &'a str) -> Out<'a, Command> {
+        let create_filler = || map(take_while(|c| c != '(' && c != ')'), |_| Command::DoNothing);
         context("comment", map(delimited(
             char('('),
-            map(is_not(")"), |_| Command::DoNothing),
+            tuple((create_filler(), many0(tuple((parse_comment, create_filler()))))),
+            // map(is_not(")"), |_| Command::DoNothing),
             char(')')
         // Tells Rust that the output from delimited etc can be a &str rather than a command
         ), |_| Command::DoNothing))(input)
