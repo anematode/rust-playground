@@ -1,4 +1,5 @@
 use std::fs;
+use colored::*;
 
 mod my_verbose {
     use nom::error::{ParseError, VerboseError, VerboseErrorKind, ErrorKind};
@@ -70,7 +71,7 @@ mod parser {
         character::complete::{char, multispace0, multispace1 as s, digit1},
         combinator::{map, opt, map_res},
         error::{context, convert_error},
-        multi::separated_nonempty_list,
+        multi::{separated_list, many_till},
         sequence::{delimited, preceded, terminated, tuple},
         IResult,
         Err, // I think this is the same as nom::internal::Err
@@ -82,7 +83,9 @@ mod parser {
 
     // TODO: Better handle the error output in this function
     pub fn parse<'a>(input: &'a str) -> Result<Vec<Command>, String> {
-        match main(input) {
+        let string = format!("{} <end>", input);
+        let string_str = string.as_str();
+        match main(string_str) {
             Ok((inp, output)) => {
                 println!("{}", inp);
                 Ok(output)
@@ -92,8 +95,8 @@ mod parser {
                     Needed::Unknown => "Need more data, but unsure how much.".to_string(),
                     Needed::Size(size) => format!("Need  precisely{} more data.", size),
                 },
-                Err::Error(verbose) => convert_error(input, verbose.as_verbose_error()),
-                Err::Failure(verbose) => convert_error(input, verbose.as_verbose_error()),
+                Err::Error(verbose) => convert_error(string_str, verbose.as_verbose_error()),
+                Err::Failure(verbose) => convert_error(string_str, verbose.as_verbose_error()),
             }),
         }
     }
@@ -252,11 +255,11 @@ mod parser {
     // }
 
     // Tell Rust that it should be an Option<Value> at this point
-    fn parse_init_value<'a>(input: &'a str) -> Out<'a, Option<Value>> {
+    fn parse_init_value<'a>(input: &'a str) -> Out<'a, Value> {
         // `alt` does not support just one case, but just know that in the future, swap `opt` with
         // `alt` and wrap the existing case in a tuple.
-        context("initial value", opt(preceded(tuple((
-            char(','), s, tag("who"), s, tag("finds"), s, reflexive_pronoun,
+        context("initial value", preceded(tuple((
+            char(','), s, tag("who"), s, tag("finds"), s, reflexive_pronoun, s,
             tag("worth"), s
         )), alt((
         //  ^
@@ -275,7 +278,7 @@ mod parser {
             //         Err(err) => Err(err),
             //     }
             // }, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
-        )))))(input)
+        ))))(input)
         // |i: &str| -> Out<'a, Value> {
         //     alt((
         //         map(tuple((tag("1"), s, tag("unit"))), |_| Value::Int(1)),
@@ -289,7 +292,7 @@ mod parser {
             map(tuple((
                 preceded(tuple((tag("consider"), s,)), parse_varname),
                 preceded(tuple((char(','), s, tag("an"), s)), parse_type),
-                parse_init_value,
+                map(parse_init_value, |s| Some(s)),
             )), |(name, var_type, value)| {
                 let name_str = String::from(name);
                 match value {
@@ -320,24 +323,24 @@ mod parser {
             context("Allow ... to declare ... worth", map(delimited(
                 tuple((tag("Allow"), s)),
                 parse_varname,
-                tuple((tag("declare"), s, possessive_pronoun, s, tag("worth"))),
+                tuple((s, tag("to"), s, tag("declare"), s, possessive_pronoun, s, tag("worth"))),
             ), |varname| Command::Log(String::from(varname)))),
-        )), tuple((char('.'), s))))(input)
+        )), char('.')))(input)
     }
 
     fn parse_comment<'a>(input: &'a str) -> Out<'a, Command> {
         context("comment", map(delimited(
             char('('),
-            alt((parse_comment, map(is_not(")"), |_| Command::DoNothing))),
+            map(is_not(")"), |_| Command::DoNothing),
             char(')')
         // Tells Rust that the output from delimited etc can be a &str rather than a command
         ), |_| Command::DoNothing))(input)
     }
 
     fn main<'a>(input: &'a str) -> Out<'a, Vec<Command>> {
-        context("main", delimited(multispace0, separated_nonempty_list(s, alt((
+        context("main", preceded(multispace0, map(many_till(terminated(alt((
             parse_command, parse_comment
-        ))), multispace0))(input)
+        )), s), context("end", tag("<end>"))), |(vec, _)| vec)))(input)
     }
 
     // pub fn debug<'a>(input: &'a str) {
@@ -353,8 +356,8 @@ pub fn yes(maybe_path: Option<&String>) {
     let path = maybe_path.unwrap_or(&default_path);
     let input = fs::read_to_string(path).unwrap();
     match parser::parse(&input) {
-        Ok(parsed) => println!("[:)] {:?} (length {})", parsed, parsed.len()),
-        Err(err) => println!("[:(] {}", err),
+        Ok(parsed) => println!("{} {:?} (length {})", "[:)]".green().bold(), parsed, parsed.len()),
+        Err(err) => println!("{} {}", "[:(]".red().bold(), err),
     };
     // parser::debug(&input);
 }
