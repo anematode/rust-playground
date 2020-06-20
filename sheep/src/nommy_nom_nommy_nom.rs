@@ -1,11 +1,12 @@
 use std::fs;
 
 mod parser {
+    use std::str;
     use nom::{
         branch::alt,
         bytes::complete::{tag, is_a, is_not, take_while},
         character::complete::{char, multispace0, multispace1 as s},
-        combinator::map,
+        combinator::{map, opt},
         error::VerboseError,
         multi::separated_list,
         number::complete::le_i32,
@@ -76,20 +77,35 @@ mod parser {
         DoNothing,
     }
 
+    fn parse_int_value<'a>(input: &'a str) -> Out<'a, Value> {
+        alt((
+            map(tuple((tag("1"), s, tag("unit"))), |_: (&str, &str, &str)| Value::Int(1)),
+            map(terminated(le_i32, tuple((s, tag("units")))), |n: i32| Value::Int(n)),
+        ))(input)
+    }
+
+    // Tell Rust that it should be an Option<Value> at this point
+    fn parse_init_value<'a>(input: &'a str) -> Out<'a, Option<Value>> {
+        // `alt` does not support just one case, but just know that in the future, swap `opt` with
+        // `alt` and wrap the existing case in a tuple.
+        opt(preceded(tuple((
+            char(','), s, tag("who"), s, tag("finds"), s, reflexive_pronoun,
+            tag("worth"), s
+        )), parse_int_value))(input)
+        // |i: &str| -> Out<'a, Value> {
+        //     alt((
+        //         map(tuple((tag("1"), s, tag("unit"))), |_| Value::Int(1)),
+        //         map(terminated(le_i32, tuple((s, tag("units")))), |n| Value::Int(n)),
+        //     ))(i)
+        // }
+    }
+
     fn parse_sub_command<'a>(input: &'a str) -> Out<'a, Command> {
         alt((
             map(tuple((
                 preceded(tuple((tag("consider"), s,)), parse_varname),
                 preceded(tuple((char(','), s, tag("an"), s)), parse_type),
-                map(alt((
-                    preceded(tuple((
-                        char(','), s, tag("who"), s, tag("finds"), s, reflexive_pronoun,
-                        tag("worth"), s
-                    )), map(alt((
-                        map(tuple((tag("1"), s, tag("unit"))), |_| Value::Int(1)),
-                        map(terminated(le_i32, tuple((s, tag("units")))), |n| Value::Int(n)),
-                    )), |v: Value| v)), // Tell Rust that it should be a Value at this point
-                )), |v: Option<Value>| v),
+                parse_init_value,
             )), |(name, var_type, value)| match value {
                 Some(value) => Command::Chain(&vec![
                     Command::MakeVar(name, var_type),
@@ -121,10 +137,10 @@ mod parser {
     fn parse_comment<'a>(input: &'a str) -> Out<'a, Command> {
         map(delimited(
             char('('),
-            alt((is_not(")"), parse_comment)),
+            alt((map(is_not(")"), |_| Command::DoNothing), parse_comment)),
             char(')')
         // Tells Rust that the output from delimited etc can be a &str rather than a command
-        ), |_: &str| Command::DoNothing)(input)
+        ), |_| Command::DoNothing)(input)
     }
 
     fn main<'a>(input: &'a str) -> Out<'a, Vec<Command>> {
