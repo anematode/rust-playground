@@ -486,26 +486,26 @@ mod interpreter {
     use super::lang::{Type, Value, Command};
     use std::collections::HashMap;
 
-    pub struct Error<'a> {
-        message: &'a String,
-        trace: Vec<&'a String>
+    pub struct Error {
+        message: String,
+        trace: Vec<String>
     }
 
-    impl<'a> Error<'a> {
-        pub fn new(command: String, msg: String) -> Error<'a> {
+    impl Error {
+        pub fn new(command: String, msg: String) -> Error {
             Error {
-                message: &command,
-                trace: vec![&msg],
+                message: command,
+                trace: vec![msg],
             }
         }
-        pub fn add_trace(&mut self, command: &'a String) {
+        pub fn add_trace(&mut self, command: String) {
             self.trace.push(command);
         }
     }
 
-    impl<'a> ToString for Error<'a> {
+    impl ToString for Error {
         fn to_string(&self) -> String {
-            let mut err_output = String::from(self.message);
+            let mut err_output = self.message.clone();
             for command in &self.trace {
                 err_output.push_str("\n  ");
                 err_output.push_str(command);
@@ -525,7 +525,7 @@ mod interpreter {
             }
         }
 
-        pub fn execute(&mut self, commands: &'a Vec<Command>) -> Result<(), Error<'a>> {
+        pub fn execute(&mut self, commands: &'a Vec<Command>) -> Result<(), Error> {
             // Temporary variable needed to prevent borrowing something as a mutable more than
             // once etc.
             // Inspired by https://stackoverflow.com/a/37987197
@@ -585,7 +585,7 @@ mod interpreter {
                     },
                     Command::Chain(commands) => {
                         if let Err(mut err) = self.execute(&commands) {
-                            err.add_trace(&command.name(i));
+                            err.add_trace(command.name(i));
                             return Err(err);
                         }
                         vars = &mut self.vars;
