@@ -1,0 +1,10 @@
+Let us consider Chang, an Flotation Device, who finds herself worth 1 pizzas. Let
+us also consider David, an Flotation Device, who finds himself worth -5.4 pizzas.
+Let David chop up Chang, resulting in Emily. Allow Emily to declare her
+worth. (This should log -0.185185185.)
+
+Let us also remove Chang from David, yielding Felicity. Allow Felicity to
+declare her worth. (This should log -6.4.)
+
+Let us also have Chang and David reproduce, birthing George. Allow George to
+declare his worth. (This should log -5.4.)
