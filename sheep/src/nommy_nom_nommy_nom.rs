@@ -109,6 +109,12 @@ mod lang {
         }
     }
 
+    #[derive(Debug, Clone)]
+    pub enum ValuePair {
+        Int(i32, i32),
+        Float(f32, f32),
+    }
+
     // Using String because functions cannot return &str (string slices) if a String was made in a
     // function. https://stackoverflow.com/a/43080280
     #[derive(Debug, Clone)]
@@ -363,8 +369,13 @@ mod parser {
                     ),
                     map(
                         terminated(
-                            map_res(tuple((opt(char('-')), digit1)), |(minus, digits): (&'a str, &'a str)| {
-                                (minus + digits).parse::<i32>()
+                            map_res(tuple((opt(char('-')), digit1)), |(minus, digits): (Option<char>, &'a str)| {
+                                let mut num = String::new();
+                                if let Some(_) = minus {
+                                    num.push('-');
+                                }
+                                num.push_str(digits);
+                                num.parse::<i32>()
                             }),
                             tuple((s, tag("units"))),
                         ),
@@ -372,13 +383,22 @@ mod parser {
                     ),
                     map(
                         tuple((tag("1"), s, tag("pizza"))),
-                        |_: (&str, &str, &str)| Value::Float(1),
+                        |_: (&str, &str, &str)| Value::Float(1.0),
                     ),
                     map(
                         terminated(
-                            map_res(tuple((opt(char('-')), digit1, opt(tuple((char('.'), digit1))))), |(minus, digits, (point, decimals)): (&'a str, &'a str, (&'a str, &'a str))| {
-                                (minus + digits + point + decimals).parse::<f32>()
-                            },
+                            map_res(tuple((opt(char('-')), digit1, opt(tuple((char('.'), digit1))))), |(minus, digits, decimal): (Option<char>, &'a str, Option<(char, &'a str)>)| {
+                                let mut num = String::new();
+                                if let Some(_) = minus {
+                                    num.push('-');
+                                }
+                                num.push_str(digits);
+                                if let Some((_, decimals)) = decimal {
+                                    num.push('.');
+                                    num.push_str(decimals);
+                                }
+                                num.parse::<f32>()
+                            }),
                             tuple((s, tag("pizzas"))),
                         ),
                         |n: f32| Value::Float(n),
@@ -555,7 +575,7 @@ mod parser {
 }
 
 mod interpreter {
-    use super::lang::{Type, Value, Command};
+    use super::lang::{Type, Value, Command, ValuePair};
     use std::collections::HashMap;
 
     pub struct Error {
@@ -599,14 +619,15 @@ mod interpreter {
             }
         }
 
-        fn verify_operation(&self, in_a: String, in_b: String, out: String) -> Result<(Value, Value), Error> {
+        fn verify_operation(&self, in_a: String, in_b: String, out: String) -> Result<ValuePair, String> {
             let vars = self.vars;
-            if vars.contains_key(out) {
-                return Err(Error::new(command.name(i), format!("{} already exists and thus cannot be produced once more.", out)));
+            if vars.contains_key(&out) {
+                // return Err(Error::new(command.name(i), ));
+                return Err(format!("{} already exists and thus cannot be produced once more.", out));
             }
-            let maybe_sum = match (vars.get(in_a), vars.get(in_b)) {
-                (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(Value::Int(a), Value::Int(b)),
-                (Some(Value::Float(a)), Some(Value::Float(b))) => Ok(Value::Float(a), Value::Float(b)),
+            match (vars.get(&in_a), vars.get(&in_b)) {
+                (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(ValuePair::Int(*a, *b)),
+                (Some(Value::Float(a)), Some(Value::Float(b))) => Ok(ValuePair::Float(*a, *b)),
                 (Some(a), Some(b)) => Err(format!(
                     "{} is {}, while {} is {}, so a mash would not produce anything meaningful.",
                     in_a,
@@ -617,10 +638,6 @@ mod interpreter {
                 (None, None) => Err(format!("Who are {} and {}?", in_a, in_b)),
                 (None, _) => Err(format!("Who is {}?", in_a)),
                 (_, None) => Err(format!("Who is {}?", in_b)),
-            };
-            match maybe_sum {
-                Err(err_msg) => Err(Error::new(command.name(i), err_msg)),
-                ok => ok,
             }
         }
 
@@ -638,7 +655,8 @@ mod interpreter {
                             return Err(Error::new(command.name(i), format!("{} has already been introduced.", name)));
                         }
                         vars.insert(name.to_string(), match var_tpe {
-                            Type::Int => Value::Int(0)
+                            Type::Int => Value::Int(0),
+                            Type::Float => Value::Float(0.0),
                         });
                     },
                     Command::SetVar(name, value) => {
@@ -647,46 +665,48 @@ mod interpreter {
                         }
                         vars.insert(name.to_string(), value.clone());
                     },
-                    Command::Add(in_a, in_b, output) => match verify_operation(in_a, in_b, output) {
+                    //  | Command::Subtract(in_a, in_b, output) | Command::Multiply(in_a, in_b, output) | Command::Divide(in_a, in_b, output)
+                    Command::Add(in_a, in_b, output) => match self.verify_operation(in_a.to_string(), in_b.to_string(), output.to_string()) {
                         Ok(pair) => {
                             vars.insert(output.to_string(), match pair {
-                                (Value::Int(a), Value::Int(b)) => Value::Int(a + b),
-                                (Value::Float(a), Value::Float(b)) => Value::Float(a + b),
+                                ValuePair::Int(a, b) => Value::Int(a + b),
+                                ValuePair::Float(a, b) => Value::Float(a + b),
                             });
                         },
-                        err => err,
+                        Err(err) => { return Err(Error::new(command.name(i), err)); },
                     },
-                    Command::Subtract(in_a, in_b, output) => match verify_operation(in_a, in_b, output) {
+                    Command::Subtract(in_a, in_b, output) => match self.verify_operation(in_a.to_string(), in_b.to_string(), output.to_string()) {
                         Ok(pair) => {
                             vars.insert(output.to_string(), match pair {
-                                (Value::Int(a), Value::Int(b)) => Value::Int(a - b),
-                                (Value::Float(a), Value::Float(b)) => Value::Float(a - b),
+                                ValuePair::Int(a, b) => Value::Int(a - b),
+                                ValuePair::Float(a, b) => Value::Float(a - b),
                             });
                         },
-                        err => err,
+                        Err(err) => { return Err(Error::new(command.name(i), err)); },
                     },
-                    Command::Multiply(in_a, in_b, output) => match verify_operation(in_a, in_b, output) {
+                    Command::Multiply(in_a, in_b, output) => match self.verify_operation(in_a.to_string(), in_b.to_string(), output.to_string()) {
                         Ok(pair) => {
                             vars.insert(output.to_string(), match pair {
-                                (Value::Int(a), Value::Int(b)) => Value::Int(a * b),
-                                (Value::Float(a), Value::Float(b)) => Value::Float(a * b),
+                                ValuePair::Int(a, b) => Value::Int(a * b),
+                                ValuePair::Float(a, b) => Value::Float(a * b),
                             });
                         },
-                        err => err,
+                        Err(err) => { return Err(Error::new(command.name(i), err)); },
                     },
-                    Command::Divide(in_a, in_b, output) => match verify_operation(in_a, in_b, output) {
+                    Command::Divide(in_a, in_b, output) => match self.verify_operation(in_a.to_string(), in_b.to_string(), output.to_string()) {
                         Ok(pair) => {
                             vars.insert(output.to_string(), match pair {
-                                (Value::Int(a), Value::Int(b)) => Value::Int(a / b),
-                                (Value::Float(a), Value::Float(b)) => Value::Float(a / b),
+                                ValuePair::Int(a, b) => Value::Int(a / b),
+                                ValuePair::Float(a, b) => Value::Float(a / b),
                             });
                         },
-                        err => err,
+                        Err(err) => { return Err(Error::new(command.name(i), err)); },
                     },
                     Command::Log(name) => {
                         if let Some(value) = vars.get(name) {
                             match value {
                                 Value::Int(val) => println!("{}", val),
+                                Value::Float(val) => println!("{}", val),
                             }
                         } else {
                             return Err(Error::new(command.name(i), format!("Who is {}?", name)));
