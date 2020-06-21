@@ -2,6 +2,7 @@ mod hi;
 mod nom_test;
 mod nommy_nom_nommy_nom;
 mod regex_test;
+mod eagle;
 use std::env;
 
 fn loud() {
@@ -18,6 +19,7 @@ fn main() {
             "nom" => nommy_nom_nommy_nom::yes(args.get(2)),
             "nt" => nom_test::yes(args.get(2)),
             "repl" => nommy_nom_nommy_nom::repl(),
+            "eagle" => eagle::strtest::main(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
