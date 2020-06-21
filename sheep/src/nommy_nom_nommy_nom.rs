@@ -1,5 +1,5 @@
 use colored::*;
-use std::fs;
+use std::{fs, io};
 
 mod my_verbose {
     use nom::error::{ErrorKind, ParseError, VerboseError, VerboseErrorKind};
@@ -117,18 +117,38 @@ mod lang {
         DoNothing,
     }
 
-    // impl ToString for Command {
-    //     fn to_string(&self) -> String {
-    //         match self {
-    //             Command::MakeVar(name, var_type) => format!("MakeVar({} of type {})", name, var_type),
-    //             Command::SetInt(name, value) => format!("SetInt({} = {})", name, value),
-    //             Command::Add(a, b, output) => format!("Add({} + {} -> {})", a, b, output),
-    //             Command::Log(name) => format!("Log({})", name),
-    //             Command::Chain(commands) => format!("Chain(\n  {}\n)", (&commands[..]).join("\n  ")),
-    //             Command::DoNothing => String::new(),
-    //         }
-    //     }
-    // }
+    impl ToString for Command {
+        fn to_string(&self) -> String {
+            match self {
+                Command::MakeVar(name, var_type) => format!("MakeVar({} of type {})", name, var_type),
+                Command::SetInt(name, value) => format!("SetInt({} = {})", name, value),
+                Command::Add(a, b, output) => format!("Add({} + {} -> {})", a, b, output),
+                Command::Log(name) => format!("Log({})", name),
+                Command::Chain(commands) => {
+                    let mut command_strs = String::new();
+                    for command in commands {
+                        command_strs.push_str(format!("\n  {}", command.to_string().replace("\n  ", "\n    ")).as_str());
+                    }
+                    format!("Chain({}\n)", command_strs)
+                },
+                Command::DoNothing => String::new(),
+            }
+        }
+    }
+
+    pub fn commands_to_string(commands: &Vec<Command>) -> String {
+        let mut command_strs = String::new();
+        let mut first = true;
+        for command in commands {
+            if first {
+                first = false;
+            } else {
+                command_strs.push('\n');
+            }
+            command_strs.push_str(command.to_string().as_str());
+        }
+        command_strs
+    }
 }
 
 mod parser {
@@ -465,8 +485,18 @@ mod interpreter {
                 trace: vec![command],
             }
         }
-        pub fn addTrace(&mut self, command: &'a Command) {
+        pub fn add_trace(&mut self, command: &'a Command) {
             self.trace.push(command);
+        }
+    }
+
+    impl<'a> ToString for Error<'a> {
+        fn to_string(&self) -> String {
+            let mut err_output = self.message.clone();
+            for command in &self.trace {
+                err_output.push_str(command.to_string().as_str());
+            }
+            err_output
         }
     }
 
@@ -481,7 +511,7 @@ mod interpreter {
             }
         }
 
-        pub fn execute(&mut self, commands: &'a Vec<Command>) -> Option<Error<'a>> {
+        pub fn execute(&mut self, commands: &'a Vec<Command>) -> Result<(), Error<'a>> {
             // Temporary variable needed to prevent borrowing something as a mutable more than
             // once etc.
             // Inspired by https://stackoverflow.com/a/37987197
@@ -492,7 +522,7 @@ mod interpreter {
                 match command {
                     Command::MakeVar(name, var_tpe) => {
                         if vars.contains_key(name) {
-                            return Some(Error::new(command, format!("{} has already been introduced.", name)));
+                            return Err(Error::new(command, format!("{} has already been introduced.", name)));
                         }
                         vars.insert(name, match var_tpe {
                             Type::Int => Value::Int(0)
@@ -500,15 +530,15 @@ mod interpreter {
                     },
                     Command::SetInt(name, value) => {
                         if !vars.contains_key(name) {
-                            return Some(Error::new(command, format!("Who is {}?", name)));
+                            return Err(Error::new(command, format!("Who is {}?", name)));
                         }
                         vars.insert(name, Value::Int(*value));
                     },
                     Command::Add(addend_1, addend_2, output) => {
                         if vars.contains_key(output) {
-                            return Some(Error::new(command, format!("{} already exists and thus cannot be produced once more.", output)));
+                            return Err(Error::new(command, format!("{} already exists and thus cannot be produced once more.", output)));
                         }
-                        let maybeSum = match (vars.get(&addend_1), vars.get(&addend_2)) {
+                        let maybe_sum = match (vars.get(&addend_1), vars.get(&addend_2)) {
                             (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(Value::Int(a + b)),
                             (Some(a), Some(b)) => Err(format!(
                                 "{} is {}, while {} is {}, so a mash would not produce anything meaningful.",
@@ -521,12 +551,12 @@ mod interpreter {
                             (None, _) => Err(format!("Who is {}?", addend_1)),
                             (_, None) => Err(format!("Who is {}?", addend_2)),
                         };
-                        match maybeSum {
+                        match maybe_sum {
                             Ok(sum) => {
                                 vars.insert(output, sum);
                             },
-                            Err(errMsg) => {
-                                return Some(Error::new(command, errMsg));
+                            Err(err_msg) => {
+                                return Err(Error::new(command, err_msg));
                             },
                         };
                     },
@@ -536,13 +566,13 @@ mod interpreter {
                                 Value::Int(val) => println!("{}", val),
                             }
                         } else {
-                            return Some(Error::new(command, format!("Who is {}?", name)));
+                            return Err(Error::new(command, format!("Who is {}?", name)));
                         }
                     },
                     Command::Chain(commands) => {
-                        if let Some(mut err) = self.execute(commands) {
-                            err.addTrace(command);
-                            return Some(err);
+                        if let Err(mut err) = self.execute(commands) {
+                            err.add_trace(command);
+                            return Err(err);
                         }
                         vars = &mut self.vars;
                     },
@@ -551,7 +581,7 @@ mod interpreter {
                 // Toss ownership back to vars_anchor
                 vars_anchor = vars;
             }
-            None
+            Ok(())
         }
     }
 }
@@ -564,13 +594,33 @@ pub fn yes(maybe_path: Option<&String>) {
     let path = maybe_path.unwrap_or(&default_path);
     let input = fs::read_to_string(path).unwrap();
     match parser::parse(&input) {
-        Ok(parsed) => println!(
-            "{} {:?} (length {})",
-            "[:)]".green().bold(),
-            parsed,
-            parsed.len()
-        ),
+        Ok(parsed) => {
+            println!(
+                "{} (length {})\n{}",
+                "[:)]".green().bold(),
+                parsed.len(),
+                lang::commands_to_string(&parsed)
+            );
+            let mut state = interpreter::State::new();
+            if let Err(err) = state.execute(&parsed) {
+                println!("{} {}", "[:(]".red().bold(), err.to_string());
+            }
+        },
         Err(err) => println!("{} {}", "[:(]".red().bold(), err),
     };
     // parser::debug(&input);
+}
+
+pub fn repl() {
+    let mut state = interpreter::State::new();
+    loop {
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line");
+        match parser::parse(&input) {
+            Ok(parsed) => state.execute(&parsed),
+            Err(err) => println!("{} {}", "[syntax error]".red().bold(), err),
+        };
+    }
 }
