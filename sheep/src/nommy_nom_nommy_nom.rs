@@ -606,6 +606,27 @@ mod interpreter {
         }
     }
 
+    fn verify_operation(vars: &HashMap<String, Value>, in_a: String, in_b: String, out: String) -> Result<ValuePair, String> {
+        if vars.contains_key(&out) {
+            // return Err(Error::new(command.name(i), ));
+            return Err(format!("{} already exists and thus cannot be produced once more.", out));
+        }
+        match (vars.get(&in_a), vars.get(&in_b)) {
+            (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(ValuePair::Int(*a, *b)),
+            (Some(Value::Float(a)), Some(Value::Float(b))) => Ok(ValuePair::Float(*a, *b)),
+            (Some(a), Some(b)) => Err(format!(
+                "{} is {}, while {} is {}, so a mash would not produce anything meaningful.",
+                in_a,
+                a,
+                in_b,
+                b,
+            )),
+            (None, None) => Err(format!("Who are {} and {}?", in_a, in_b)),
+            (None, _) => Err(format!("Who is {}?", in_a)),
+            (_, None) => Err(format!("Who is {}?", in_b)),
+        }
+    }
+
     pub struct State {
         // https://stackoverflow.com/a/26324805 String as key is better than &'a String ok I guess
         // that makes sense
@@ -616,28 +637,6 @@ mod interpreter {
         pub fn new() -> State {
             State {
                 vars: HashMap::new()
-            }
-        }
-
-        fn verify_operation(&self, in_a: String, in_b: String, out: String) -> Result<ValuePair, String> {
-            let vars = self.vars;
-            if vars.contains_key(&out) {
-                // return Err(Error::new(command.name(i), ));
-                return Err(format!("{} already exists and thus cannot be produced once more.", out));
-            }
-            match (vars.get(&in_a), vars.get(&in_b)) {
-                (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(ValuePair::Int(*a, *b)),
-                (Some(Value::Float(a)), Some(Value::Float(b))) => Ok(ValuePair::Float(*a, *b)),
-                (Some(a), Some(b)) => Err(format!(
-                    "{} is {}, while {} is {}, so a mash would not produce anything meaningful.",
-                    in_a,
-                    a,
-                    in_b,
-                    b,
-                )),
-                (None, None) => Err(format!("Who are {} and {}?", in_a, in_b)),
-                (None, _) => Err(format!("Who is {}?", in_a)),
-                (_, None) => Err(format!("Who is {}?", in_b)),
             }
         }
 
@@ -666,7 +665,7 @@ mod interpreter {
                         vars.insert(name.to_string(), value.clone());
                     },
                     //  | Command::Subtract(in_a, in_b, output) | Command::Multiply(in_a, in_b, output) | Command::Divide(in_a, in_b, output)
-                    Command::Add(in_a, in_b, output) => match self.verify_operation(in_a.to_string(), in_b.to_string(), output.to_string()) {
+                    Command::Add(in_a, in_b, output) => match verify_operation(vars, in_a.to_string(), in_b.to_string(), output.to_string()) {
                         Ok(pair) => {
                             vars.insert(output.to_string(), match pair {
                                 ValuePair::Int(a, b) => Value::Int(a + b),
@@ -675,7 +674,7 @@ mod interpreter {
                         },
                         Err(err) => { return Err(Error::new(command.name(i), err)); },
                     },
-                    Command::Subtract(in_a, in_b, output) => match self.verify_operation(in_a.to_string(), in_b.to_string(), output.to_string()) {
+                    Command::Subtract(in_a, in_b, output) => match verify_operation(vars, in_a.to_string(), in_b.to_string(), output.to_string()) {
                         Ok(pair) => {
                             vars.insert(output.to_string(), match pair {
                                 ValuePair::Int(a, b) => Value::Int(a - b),
@@ -684,7 +683,7 @@ mod interpreter {
                         },
                         Err(err) => { return Err(Error::new(command.name(i), err)); },
                     },
-                    Command::Multiply(in_a, in_b, output) => match self.verify_operation(in_a.to_string(), in_b.to_string(), output.to_string()) {
+                    Command::Multiply(in_a, in_b, output) => match verify_operation(vars, in_a.to_string(), in_b.to_string(), output.to_string()) {
                         Ok(pair) => {
                             vars.insert(output.to_string(), match pair {
                                 ValuePair::Int(a, b) => Value::Int(a * b),
@@ -693,7 +692,7 @@ mod interpreter {
                         },
                         Err(err) => { return Err(Error::new(command.name(i), err)); },
                     },
-                    Command::Divide(in_a, in_b, output) => match self.verify_operation(in_a.to_string(), in_b.to_string(), output.to_string()) {
+                    Command::Divide(in_a, in_b, output) => match verify_operation(vars, in_a.to_string(), in_b.to_string(), output.to_string()) {
                         Ok(pair) => {
                             vars.insert(output.to_string(), match pair {
                                 ValuePair::Int(a, b) => Value::Int(a / b),
@@ -758,7 +757,7 @@ pub fn repl() {
     let mut state = interpreter::State::new();
     loop {
         print!("> ");
-        io::stdout().flush();
+        io::stdout().flush().expect(format!("{} Failed to flush stdout", "[repl error]".red()).as_str());
         let mut input = String::new();
         io::stdin()
             .read_line(&mut input)
