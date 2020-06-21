@@ -117,11 +117,24 @@ mod lang {
         DoNothing,
     }
 
+    impl Command {
+        pub fn name(&self, i: usize) -> String {
+            format!("[#{}] {}", i, match self {
+                Command::MakeVar(..) => "MakeVar",
+                Command::SetInt(..) => "SetInt",
+                Command::Add(..) => "Add",
+                Command::Log(..) => "Log",
+                Command::Chain(..) => "Chain",
+                Command::DoNothing => "DoNothing",
+            })
+        }
+    }
+
     impl ToString for Command {
         fn to_string(&self) -> String {
             match self {
-                Command::MakeVar(name, var_type) => format!("MakeVar({} of type {})", name, var_type),
-                Command::SetInt(name, value) => format!("SetInt({} = {})", name, value),
+                Command::MakeVar(name, var_type) => format!("MakeVar({} of type {})", name, var_type.to_string()),
+                Command::SetInt(name, value) => format!("SetInt({} = {})", name, value.to_string()),
                 Command::Add(a, b, output) => format!("Add({} + {} -> {})", a, b, output),
                 Command::Log(name) => format!("Log({})", name),
                 Command::Chain(commands) => {
@@ -474,27 +487,28 @@ mod interpreter {
     use std::collections::HashMap;
 
     pub struct Error<'a> {
-        message: String,
-        trace: Vec<&'a Command>
+        message: &'a String,
+        trace: Vec<&'a String>
     }
 
     impl<'a> Error<'a> {
-        pub fn new(command: &'a Command, msg: String) -> Error<'a> {
+        pub fn new(command: String, msg: String) -> Error<'a> {
             Error {
-                message: msg,
-                trace: vec![command],
+                message: &command,
+                trace: vec![&msg],
             }
         }
-        pub fn add_trace(&mut self, command: &'a Command) {
+        pub fn add_trace(&mut self, command: &'a String) {
             self.trace.push(command);
         }
     }
 
     impl<'a> ToString for Error<'a> {
         fn to_string(&self) -> String {
-            let mut err_output = self.message.clone();
+            let mut err_output = String::from(self.message);
             for command in &self.trace {
-                err_output.push_str(command.to_string().as_str());
+                err_output.push_str("\n  ");
+                err_output.push_str(command);
             }
             err_output
         }
@@ -516,27 +530,27 @@ mod interpreter {
             // once etc.
             // Inspired by https://stackoverflow.com/a/37987197
             let mut vars_anchor = &mut self.vars;
-            for command in commands {
+            for (i, command) in commands.iter().enumerate() {
                 // Give ownership to vars
                 let mut vars = vars_anchor;
                 match command {
                     Command::MakeVar(name, var_tpe) => {
-                        if vars.contains_key(name) {
-                            return Err(Error::new(command, format!("{} has already been introduced.", name)));
+                        if vars.contains_key(&name) {
+                            return Err(Error::new(command.name(i), format!("{} has already been introduced.", name)));
                         }
                         vars.insert(name, match var_tpe {
                             Type::Int => Value::Int(0)
                         });
                     },
                     Command::SetInt(name, value) => {
-                        if !vars.contains_key(name) {
-                            return Err(Error::new(command, format!("Who is {}?", name)));
+                        if !vars.contains_key(&name) {
+                            return Err(Error::new(command.name(i), format!("Who is {}?", name)));
                         }
                         vars.insert(name, Value::Int(*value));
                     },
                     Command::Add(addend_1, addend_2, output) => {
-                        if vars.contains_key(output) {
-                            return Err(Error::new(command, format!("{} already exists and thus cannot be produced once more.", output)));
+                        if vars.contains_key(&output) {
+                            return Err(Error::new(command.name(i), format!("{} already exists and thus cannot be produced once more.", output)));
                         }
                         let maybe_sum = match (vars.get(&addend_1), vars.get(&addend_2)) {
                             (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(Value::Int(a + b)),
@@ -553,25 +567,25 @@ mod interpreter {
                         };
                         match maybe_sum {
                             Ok(sum) => {
-                                vars.insert(output, sum);
+                                vars.insert(&output, sum);
                             },
                             Err(err_msg) => {
-                                return Err(Error::new(command, err_msg));
+                                return Err(Error::new(command.name(i), err_msg));
                             },
                         };
                     },
                     Command::Log(name) => {
-                        if let Some(value) = vars.get(name) {
+                        if let Some(value) = vars.get(&name) {
                             match value {
                                 Value::Int(val) => println!("{}", val),
                             }
                         } else {
-                            return Err(Error::new(command, format!("Who is {}?", name)));
+                            return Err(Error::new(command.name(i), format!("Who is {}?", name)));
                         }
                     },
                     Command::Chain(commands) => {
-                        if let Err(mut err) = self.execute(commands) {
-                            err.add_trace(command);
+                        if let Err(mut err) = self.execute(&commands) {
+                            err.add_trace(&command.name(i));
                             return Err(err);
                         }
                         vars = &mut self.vars;
@@ -617,10 +631,16 @@ pub fn repl() {
         let mut input = String::new();
         io::stdin()
             .read_line(&mut input)
-            .expect("Failed to read line");
+            .expect(format!("{} Failed to read line", "[repl error]".red()).as_str());
         match parser::parse(&input) {
-            Ok(parsed) => state.execute(&parsed),
-            Err(err) => println!("{} {}", "[syntax error]".red().bold(), err),
+            Ok(parsed) => {
+                if let Err(err) = state.execute(&parsed) {
+                    println!("{} {}", "[runtime error]".red().bold(), err.to_string())
+                }
+            },
+            Err(err) => {
+                println!("{} {}", "[syntax error]".red().bold(), err.to_string())
+            },
         };
     }
 }
