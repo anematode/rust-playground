@@ -28,7 +28,10 @@ mod years_of_age {
 
     /// Perro.
     fn sixty() -> Thirt {
-        return Thirt {y_one: 31, six_six: String::from("66")}
+        return Thirt {
+            y_one: 31,
+            six_six: String::from("66"),
+        };
     }
 
     pub fn intro_ducir() -> String {

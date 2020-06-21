@@ -6,8 +6,18 @@ lazy_static! {
 }
 
 const MONTHS: [&str; 12] = [
-    "enero", "febrero", "marzo", "abril", "mayo", "juno",
-    "julio", "agosto", "septiembre", "octubre", "noviembre", "deciembre",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "juno",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "deciembre",
 ];
 
 const DEFAULT_INPUT: &'static str = "2012-03-14, 2013-01-01, 2014-07-05, 2020-13-01";

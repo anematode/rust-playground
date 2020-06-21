@@ -1,6 +1,8 @@
+mod eagle;
 mod hi;
-mod regex_test;
+mod nom_test;
 mod nommy_nom_nommy_nom;
+mod regex_test;
 use std::env;
 
 fn loud() {
@@ -15,6 +17,10 @@ fn main() {
             "loud" => loud(),
             "regex" => regex_test::weee(args.get(2)),
             "nom" => nommy_nom_nommy_nom::yes(args.get(2)),
+            "nt" => nom_test::yes(args.get(2)),
+            "repl" => nommy_nom_nommy_nom::repl(),
+            "eagle" => eagle::strtest::main(),
+            "gp5" => eagle::gp5_perf_test::main(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
