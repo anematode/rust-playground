@@ -1,5 +1,8 @@
 use colored::*;
-use std::{fs, io::{self, Write}};
+use std::{
+    fs,
+    io::{self, Write},
+};
 
 mod my_verbose {
     use nom::error::{ErrorKind, ParseError, VerboseError, VerboseErrorKind};
@@ -132,17 +135,21 @@ mod lang {
 
     impl Command {
         pub fn name(&self, i: usize) -> String {
-            format!("[#{}] {}", i, match self {
-                Command::MakeVar(..) => "MakeVar",
-                Command::SetVar(..) => "SetVar",
-                Command::Add(..) => "Add",
-                Command::Subtract(..) => "Subtract",
-                Command::Multiply(..) => "Multiply",
-                Command::Divide(..) => "Divide",
-                Command::Log(..) => "Log",
-                Command::Chain(..) => "Chain",
-                Command::DoNothing => "DoNothing",
-            })
+            format!(
+                "[#{}] {}",
+                i,
+                match self {
+                    Command::MakeVar(..) => "MakeVar",
+                    Command::SetVar(..) => "SetVar",
+                    Command::Add(..) => "Add",
+                    Command::Subtract(..) => "Subtract",
+                    Command::Multiply(..) => "Multiply",
+                    Command::Divide(..) => "Divide",
+                    Command::Log(..) => "Log",
+                    Command::Chain(..) => "Chain",
+                    Command::DoNothing => "DoNothing",
+                }
+            )
         }
     }
 
@@ -162,7 +169,9 @@ mod lang {
     impl ToString for Command {
         fn to_string(&self) -> String {
             match self {
-                Command::MakeVar(name, var_type) => format!("MakeVar({} of type {})", name, var_type.to_string()),
+                Command::MakeVar(name, var_type) => {
+                    format!("MakeVar({} of type {})", name, var_type.to_string())
+                }
                 Command::SetVar(name, value) => format!("SetVar({} = {})", name, value.to_string()),
                 Command::Add(a, b, output) => format!("Add({} + {} -> {})", a, b, output),
                 Command::Subtract(a, b, output) => format!("Subtract({} - {} -> {})", a, b, output),
@@ -172,10 +181,13 @@ mod lang {
                 Command::Chain(commands) => {
                     let mut command_strs = String::new();
                     for command in commands {
-                        command_strs.push_str(format!("\n  {}", command.to_string().replace("\n  ", "\n    ")).as_str());
+                        command_strs.push_str(
+                            format!("\n  {}", command.to_string().replace("\n  ", "\n    "))
+                                .as_str(),
+                        );
                     }
                     format!("Chain({}\n)", command_strs)
-                },
+                }
                 Command::DoNothing => String::new(),
             }
         }
@@ -199,6 +211,7 @@ mod lang {
 mod parser {
     use std::str;
     // use std::fmt;
+    use super::lang::{Command, Type, Value};
     use super::my_verbose::MyVerboseError;
     use nom::{
         branch::alt,
@@ -212,7 +225,6 @@ mod parser {
         IResult,
         Needed,
     };
-    use super::lang::{Type, Value, Command};
 
     type Out<'a, T> = IResult<&'a str, T, MyVerboseError<'a>>;
 
@@ -369,14 +381,17 @@ mod parser {
                     ),
                     map(
                         terminated(
-                            map_res(tuple((opt(char('-')), digit1)), |(minus, digits): (Option<char>, &'a str)| {
-                                let mut num = String::new();
-                                if let Some(_) = minus {
-                                    num.push('-');
-                                }
-                                num.push_str(digits);
-                                num.parse::<i32>()
-                            }),
+                            map_res(
+                                tuple((opt(char('-')), digit1)),
+                                |(minus, digits): (Option<char>, &'a str)| {
+                                    let mut num = String::new();
+                                    if let Some(_) = minus {
+                                        num.push('-');
+                                    }
+                                    num.push_str(digits);
+                                    num.parse::<i32>()
+                                },
+                            ),
                             tuple((s, tag("units"))),
                         ),
                         |n: i32| Value::Int(n),
@@ -387,18 +402,25 @@ mod parser {
                     ),
                     map(
                         terminated(
-                            map_res(tuple((opt(char('-')), digit1, opt(tuple((char('.'), digit1))))), |(minus, digits, decimal): (Option<char>, &'a str, Option<(char, &'a str)>)| {
-                                let mut num = String::new();
-                                if let Some(_) = minus {
-                                    num.push('-');
-                                }
-                                num.push_str(digits);
-                                if let Some((_, decimals)) = decimal {
-                                    num.push('.');
-                                    num.push_str(decimals);
-                                }
-                                num.parse::<f32>()
-                            }),
+                            map_res(
+                                tuple((opt(char('-')), digit1, opt(tuple((char('.'), digit1))))),
+                                |(minus, digits, decimal): (
+                                    Option<char>,
+                                    &'a str,
+                                    Option<(char, &'a str)>,
+                                )| {
+                                    let mut num = String::new();
+                                    if let Some(_) = minus {
+                                        num.push('-');
+                                    }
+                                    num.push_str(digits);
+                                    if let Some((_, decimals)) = decimal {
+                                        num.push('.');
+                                        num.push_str(decimals);
+                                    }
+                                    num.parse::<f32>()
+                                },
+                            ),
                             tuple((s, tag("pizzas"))),
                         ),
                         |n: f32| Value::Float(n),
@@ -463,10 +485,7 @@ mod parser {
                     tuple((
                         preceded(tuple((tag("remove"), s)), parse_varname),
                         preceded(tuple((s, tag("from"), s)), parse_varname),
-                        preceded(
-                            tuple((char(','), s, tag("yielding"), s)),
-                            parse_varname,
-                        ),
+                        preceded(tuple((char(','), s, tag("yielding"), s)), parse_varname),
                     )),
                     |(b, a, output)| Command::Subtract(a, b, output),
                 ),
@@ -497,17 +516,20 @@ mod parser {
                             parse_sub_command,
                         ),
                     ),
-                    context("Let ... chop up ...", map(
-                        tuple((
-                            preceded(tuple((tag("Let"), s, )), parse_varname),
-                            preceded(tuple((s, tag("chop"), s, tag("up"), s)), parse_varname),
-                            preceded(
-                                tuple((char(','), s, tag("resulting"), s, tag("in"), s)),
-                                parse_varname,
-                            ),
-                        )),
-                        |(b, a, output)| Command::Divide(a, b, output),
-                    )),
+                    context(
+                        "Let ... chop up ...",
+                        map(
+                            tuple((
+                                preceded(tuple((tag("Let"), s)), parse_varname),
+                                preceded(tuple((s, tag("chop"), s, tag("up"), s)), parse_varname),
+                                preceded(
+                                    tuple((char(','), s, tag("resulting"), s, tag("in"), s)),
+                                    parse_varname,
+                                ),
+                            )),
+                            |(b, a, output)| Command::Divide(a, b, output),
+                        ),
+                    ),
                     context(
                         "Allow ... to declare ... worth",
                         map(
@@ -528,13 +550,7 @@ mod parser {
                             |varname| Command::Log(String::from(varname)),
                         ),
                     ),
-                    context(
-                        "Hm",
-                        map(
-                            tag("Hm"),
-                            |_| Command::DoNothing,
-                        ),
-                    ),
+                    context("Hm", map(tag("Hm"), |_| Command::DoNothing)),
                 )),
                 char('.'),
             ),
@@ -582,12 +598,12 @@ mod parser {
 }
 
 mod interpreter {
-    use super::lang::{Type, Value, Command, ValuePair};
+    use super::lang::{Command, Type, Value, ValuePair};
     use std::collections::HashMap;
 
     pub struct Error {
         message: String,
-        trace: Vec<String>
+        trace: Vec<String>,
     }
 
     impl Error {
@@ -613,20 +629,25 @@ mod interpreter {
         }
     }
 
-    fn verify_operation(vars: &HashMap<String, Value>, in_a: String, in_b: String, out: String) -> Result<ValuePair, String> {
+    fn verify_operation(
+        vars: &HashMap<String, Value>,
+        in_a: String,
+        in_b: String,
+        out: String,
+    ) -> Result<ValuePair, String> {
         if vars.contains_key(&out) {
             // return Err(Error::new(command.name(i), ));
-            return Err(format!("{} already exists and thus cannot be produced once more.", out));
+            return Err(format!(
+                "{} already exists and thus cannot be produced once more.",
+                out
+            ));
         }
         match (vars.get(&in_a), vars.get(&in_b)) {
             (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(ValuePair::Int(*a, *b)),
             (Some(Value::Float(a)), Some(Value::Float(b))) => Ok(ValuePair::Float(*a, *b)),
             (Some(a), Some(b)) => Err(format!(
                 "{} is {}, while {} is {}, so a mash would not produce anything meaningful.",
-                in_a,
-                a,
-                in_b,
-                b,
+                in_a, a, in_b, b,
             )),
             (None, None) => Err(format!("Who are {} and {}?", in_a, in_b)),
             (None, _) => Err(format!("Who is {}?", in_a)),
@@ -643,7 +664,7 @@ mod interpreter {
     impl State {
         pub fn new() -> State {
             State {
-                vars: HashMap::new()
+                vars: HashMap::new(),
             }
         }
 
@@ -658,55 +679,101 @@ mod interpreter {
                 match command {
                     Command::MakeVar(name, var_tpe) => {
                         if vars.contains_key(name) {
-                            return Err(Error::new(command.name(i), format!("{} has already been introduced.", name)));
+                            return Err(Error::new(
+                                command.name(i),
+                                format!("{} has already been introduced.", name),
+                            ));
                         }
-                        vars.insert(name.to_string(), match var_tpe {
-                            Type::Int => Value::Int(0),
-                            Type::Float => Value::Float(0.0),
-                        });
-                    },
+                        vars.insert(
+                            name.to_string(),
+                            match var_tpe {
+                                Type::Int => Value::Int(0),
+                                Type::Float => Value::Float(0.0),
+                            },
+                        );
+                    }
                     Command::SetVar(name, value) => {
                         if !vars.contains_key(name) {
                             return Err(Error::new(command.name(i), format!("Who is {}?", name)));
                         }
                         vars.insert(name.to_string(), value.clone());
-                    },
+                    }
                     //  | Command::Subtract(in_a, in_b, output) | Command::Multiply(in_a, in_b, output) | Command::Divide(in_a, in_b, output)
-                    Command::Add(in_a, in_b, output) => match verify_operation(vars, in_a.to_string(), in_b.to_string(), output.to_string()) {
+                    Command::Add(in_a, in_b, output) => match verify_operation(
+                        vars,
+                        in_a.to_string(),
+                        in_b.to_string(),
+                        output.to_string(),
+                    ) {
                         Ok(pair) => {
-                            vars.insert(output.to_string(), match pair {
-                                ValuePair::Int(a, b) => Value::Int(a + b),
-                                ValuePair::Float(a, b) => Value::Float(a + b),
-                            });
-                        },
-                        Err(err) => { return Err(Error::new(command.name(i), err)); },
+                            vars.insert(
+                                output.to_string(),
+                                match pair {
+                                    ValuePair::Int(a, b) => Value::Int(a + b),
+                                    ValuePair::Float(a, b) => Value::Float(a + b),
+                                },
+                            );
+                        }
+                        Err(err) => {
+                            return Err(Error::new(command.name(i), err));
+                        }
                     },
-                    Command::Subtract(in_a, in_b, output) => match verify_operation(vars, in_a.to_string(), in_b.to_string(), output.to_string()) {
+                    Command::Subtract(in_a, in_b, output) => match verify_operation(
+                        vars,
+                        in_a.to_string(),
+                        in_b.to_string(),
+                        output.to_string(),
+                    ) {
                         Ok(pair) => {
-                            vars.insert(output.to_string(), match pair {
-                                ValuePair::Int(a, b) => Value::Int(a - b),
-                                ValuePair::Float(a, b) => Value::Float(a - b),
-                            });
-                        },
-                        Err(err) => { return Err(Error::new(command.name(i), err)); },
+                            vars.insert(
+                                output.to_string(),
+                                match pair {
+                                    ValuePair::Int(a, b) => Value::Int(a - b),
+                                    ValuePair::Float(a, b) => Value::Float(a - b),
+                                },
+                            );
+                        }
+                        Err(err) => {
+                            return Err(Error::new(command.name(i), err));
+                        }
                     },
-                    Command::Multiply(in_a, in_b, output) => match verify_operation(vars, in_a.to_string(), in_b.to_string(), output.to_string()) {
+                    Command::Multiply(in_a, in_b, output) => match verify_operation(
+                        vars,
+                        in_a.to_string(),
+                        in_b.to_string(),
+                        output.to_string(),
+                    ) {
                         Ok(pair) => {
-                            vars.insert(output.to_string(), match pair {
-                                ValuePair::Int(a, b) => Value::Int(a * b),
-                                ValuePair::Float(a, b) => Value::Float(a * b),
-                            });
-                        },
-                        Err(err) => { return Err(Error::new(command.name(i), err)); },
+                            vars.insert(
+                                output.to_string(),
+                                match pair {
+                                    ValuePair::Int(a, b) => Value::Int(a * b),
+                                    ValuePair::Float(a, b) => Value::Float(a * b),
+                                },
+                            );
+                        }
+                        Err(err) => {
+                            return Err(Error::new(command.name(i), err));
+                        }
                     },
-                    Command::Divide(in_a, in_b, output) => match verify_operation(vars, in_a.to_string(), in_b.to_string(), output.to_string()) {
+                    Command::Divide(in_a, in_b, output) => match verify_operation(
+                        vars,
+                        in_a.to_string(),
+                        in_b.to_string(),
+                        output.to_string(),
+                    ) {
                         Ok(pair) => {
-                            vars.insert(output.to_string(), match pair {
-                                ValuePair::Int(a, b) => Value::Int(a / b),
-                                ValuePair::Float(a, b) => Value::Float(a / b),
-                            });
-                        },
-                        Err(err) => { return Err(Error::new(command.name(i), err)); },
+                            vars.insert(
+                                output.to_string(),
+                                match pair {
+                                    ValuePair::Int(a, b) => Value::Int(a / b),
+                                    ValuePair::Float(a, b) => Value::Float(a / b),
+                                },
+                            );
+                        }
+                        Err(err) => {
+                            return Err(Error::new(command.name(i), err));
+                        }
                     },
                     Command::Log(name) => {
                         if let Some(value) = vars.get(name) {
@@ -717,15 +784,15 @@ mod interpreter {
                         } else {
                             return Err(Error::new(command.name(i), format!("Who is {}?", name)));
                         }
-                    },
+                    }
                     Command::Chain(commands) => {
                         if let Err(mut err) = self.execute(commands.to_vec()) {
                             err.add_trace(command.name(i));
                             return Err(err);
                         }
                         vars = &mut self.vars;
-                    },
-                    Command::DoNothing => {},
+                    }
+                    Command::DoNothing => {}
                 };
                 // Toss ownership back to vars_anchor
                 vars_anchor = vars;
@@ -754,7 +821,7 @@ pub fn yes(maybe_path: Option<&String>) {
             if let Err(err) = state.execute(parsed) {
                 println!("{} {}", "[:(]".red().bold(), err.to_string());
             }
-        },
+        }
         Err(err) => println!("{} {}", "[:(]".red().bold(), err),
     };
     // parser::debug(&input);
@@ -764,7 +831,9 @@ pub fn repl() {
     let mut state = interpreter::State::new();
     loop {
         print!("> ");
-        io::stdout().flush().expect(format!("{} Failed to flush stdout", "[repl error]".red()).as_str());
+        io::stdout()
+            .flush()
+            .expect(format!("{} Failed to flush stdout", "[repl error]".red()).as_str());
         let mut input = String::new();
         io::stdin()
             .read_line(&mut input)
@@ -774,10 +843,8 @@ pub fn repl() {
                 if let Err(err) = state.execute(parsed) {
                     println!("{} {}", "[runtime error]".red().bold(), err.to_string())
                 }
-            },
-            Err(err) => {
-                println!("{} {}", "[syntax error]".red().bold(), err.to_string())
-            },
+            }
+            Err(err) => println!("{} {}", "[syntax error]".red().bold(), err.to_string()),
         };
     }
 }
