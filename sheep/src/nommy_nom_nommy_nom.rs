@@ -67,7 +67,7 @@ mod my_verbose {
 mod lang {
     use std::fmt;
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Type {
         Int,
     }
@@ -86,7 +86,7 @@ mod lang {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Value {
         Int(i32),
     }
@@ -107,7 +107,7 @@ mod lang {
 
     // Using String because functions cannot return &str (string slices) if a String was made in a
     // function. https://stackoverflow.com/a/43080280
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Command {
         MakeVar(String, Type),
         SetInt(String, i32),
@@ -129,6 +129,19 @@ mod lang {
             })
         }
     }
+
+    // impl Clone for Command {
+    //     fn clone(&self) -> Self {
+    //         match self {
+    //             Command::MakeVar(name, var_type) => Command::MakeVar(name.clone(), var_type),
+    //             Command::SetInt(name, value) => Command::SetInt(name.clone(), value),
+    //             Command::Add(a, b, output) => Command::Add(a.clone(), b.clone(), output.clone()),
+    //             Command::Log(name) => Command::Log(name.clone()),
+    //             Command::Chain(commands) => Command::Chain(commands.to_vec()),
+    //             Command::DoNothing => Command::DoNothing,
+    //         }
+    //     }
+    // }
 
     impl ToString for Command {
         fn to_string(&self) -> String {
@@ -514,18 +527,20 @@ mod interpreter {
         }
     }
 
-    pub struct State<'a> {
-        vars: HashMap<&'a String, Value>,
+    pub struct State {
+        // https://stackoverflow.com/a/26324805 String as key is better than &'a String ok I guess
+        // that makes sense
+        vars: HashMap<String, Value>,
     }
 
-    impl<'a> State<'a> {
-        pub fn new() -> State<'a> {
+    impl State {
+        pub fn new() -> State {
             State {
                 vars: HashMap::new()
             }
         }
 
-        pub fn execute(&mut self, commands: &'a Vec<Command>) -> Result<(), Error> {
+        pub fn execute(&mut self, commands: Vec<Command>) -> Result<(), Error> {
             // Temporary variable needed to prevent borrowing something as a mutable more than
             // once etc.
             // Inspired by https://stackoverflow.com/a/37987197
@@ -535,24 +550,24 @@ mod interpreter {
                 let mut vars = vars_anchor;
                 match command {
                     Command::MakeVar(name, var_tpe) => {
-                        if vars.contains_key(&name) {
+                        if vars.contains_key(name) {
                             return Err(Error::new(command.name(i), format!("{} has already been introduced.", name)));
                         }
-                        vars.insert(name, match var_tpe {
+                        vars.insert(name.to_string(), match var_tpe {
                             Type::Int => Value::Int(0)
                         });
                     },
                     Command::SetInt(name, value) => {
-                        if !vars.contains_key(&name) {
+                        if !vars.contains_key(name) {
                             return Err(Error::new(command.name(i), format!("Who is {}?", name)));
                         }
-                        vars.insert(name, Value::Int(*value));
+                        vars.insert(name.to_string(), Value::Int(*value));
                     },
                     Command::Add(addend_1, addend_2, output) => {
-                        if vars.contains_key(&output) {
+                        if vars.contains_key(output) {
                             return Err(Error::new(command.name(i), format!("{} already exists and thus cannot be produced once more.", output)));
                         }
-                        let maybe_sum = match (vars.get(&addend_1), vars.get(&addend_2)) {
+                        let maybe_sum = match (vars.get(addend_1), vars.get(addend_2)) {
                             (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(Value::Int(a + b)),
                             (Some(a), Some(b)) => Err(format!(
                                 "{} is {}, while {} is {}, so a mash would not produce anything meaningful.",
@@ -567,7 +582,7 @@ mod interpreter {
                         };
                         match maybe_sum {
                             Ok(sum) => {
-                                vars.insert(&output, sum);
+                                vars.insert(output.to_string(), sum);
                             },
                             Err(err_msg) => {
                                 return Err(Error::new(command.name(i), err_msg));
@@ -575,7 +590,7 @@ mod interpreter {
                         };
                     },
                     Command::Log(name) => {
-                        if let Some(value) = vars.get(&name) {
+                        if let Some(value) = vars.get(name) {
                             match value {
                                 Value::Int(val) => println!("{}", val),
                             }
@@ -584,7 +599,7 @@ mod interpreter {
                         }
                     },
                     Command::Chain(commands) => {
-                        if let Err(mut err) = self.execute(&commands) {
+                        if let Err(mut err) = self.execute(commands.to_vec()) {
                             err.add_trace(command.name(i));
                             return Err(err);
                         }
@@ -616,7 +631,7 @@ pub fn yes(maybe_path: Option<&String>) {
                 lang::commands_to_string(&parsed)
             );
             let mut state = interpreter::State::new();
-            if let Err(err) = state.execute(&parsed) {
+            if let Err(err) = state.execute(parsed) {
                 println!("{} {}", "[:(]".red().bold(), err.to_string());
             }
         },
@@ -634,7 +649,7 @@ pub fn repl() {
             .expect(format!("{} Failed to read line", "[repl error]".red()).as_str());
         match parser::parse(&input) {
             Ok(parsed) => {
-                if let Err(err) = state.execute(&parsed) {
+                if let Err(err) = state.execute(parsed) {
                     println!("{} {}", "[runtime error]".red().bold(), err.to_string())
                 }
             },
