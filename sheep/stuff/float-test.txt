@@ -1,4 +1,4 @@
-Let us consider Chang, an Flotation Device, who finds herself worth 1 pizzas. Let
+Let us consider Chang, an Flotation Device, who finds herself worth 1 pizza. Let
 us also consider David, an Flotation Device, who finds himself worth -5.4 pizzas.
 Let David chop up Chang, resulting in Emily. Allow Emily to declare her
 worth. (This should log -0.185185185.)

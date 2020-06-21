@@ -506,7 +506,7 @@ mod parser {
                                 parse_varname,
                             ),
                         )),
-                        |(a, b, output)| Command::Divide(a, b, output),
+                        |(b, a, output)| Command::Divide(a, b, output),
                     )),
                     context(
                         "Allow ... to declare ... worth",
