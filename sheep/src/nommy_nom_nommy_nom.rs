@@ -528,6 +528,13 @@ mod parser {
                             |varname| Command::Log(String::from(varname)),
                         ),
                     ),
+                    context(
+                        "Hm",
+                        map(
+                            tag("Hm"),
+                            |_| Command::DoNothing,
+                        ),
+                    ),
                 )),
                 char('.'),
             ),
