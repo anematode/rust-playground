@@ -17,6 +17,7 @@ fn main() {
             "regex" => regex_test::weee(args.get(2)),
             "nom" => nommy_nom_nommy_nom::yes(args.get(2)),
             "nt" => nom_test::yes(args.get(2)),
+            "repl" => nommy_nom_nommy_nom::repl(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }

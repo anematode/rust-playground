@@ -1,5 +1,5 @@
 use colored::*;
-use std::{fs, io};
+use std::{fs, io::{self, Write}};
 
 mod my_verbose {
     use nom::error::{ErrorKind, ParseError, VerboseError, VerboseErrorKind};
@@ -643,6 +643,8 @@ pub fn yes(maybe_path: Option<&String>) {
 pub fn repl() {
     let mut state = interpreter::State::new();
     loop {
+        print!("> ");
+        io::stdout().flush();
         let mut input = String::new();
         io::stdin()
             .read_line(&mut input)
