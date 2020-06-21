@@ -64,6 +64,73 @@ mod my_verbose {
     }
 }
 
+mod lang {
+    use std::fmt;
+
+    #[derive(Debug)]
+    pub enum Type {
+        Int,
+    }
+
+    impl Type {
+        fn to_string(&self) -> String {
+            match self {
+                Type::Int => String::from("Int"),
+            }
+        }
+    }
+
+    impl fmt::Display for Type {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.to_string())
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum Value {
+        Int(i32),
+    }
+
+    impl Value {
+        fn to_string(&self) -> String {
+            match self {
+                Value::Int(value) => format!("Int({})", value),
+            }
+        }
+    }
+
+    impl fmt::Display for Value {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.to_string())
+        }
+    }
+
+    // Using String because functions cannot return &str (string slices) if a String was made in a
+    // function. https://stackoverflow.com/a/43080280
+    #[derive(Debug)]
+    pub enum Command {
+        MakeVar(String, Type),
+        SetInt(String, i32),
+        Add(String, String, String),
+        Log(String),
+        Chain(Vec<Command>),
+        DoNothing,
+    }
+
+    // impl ToString for Command {
+    //     fn to_string(&self) -> String {
+    //         match self {
+    //             Command::MakeVar(name, var_type) => format!("MakeVar({} of type {})", name, var_type),
+    //             Command::SetInt(name, value) => format!("SetInt({} = {})", name, value),
+    //             Command::Add(a, b, output) => format!("Add({} + {} -> {})", a, b, output),
+    //             Command::Log(name) => format!("Log({})", name),
+    //             Command::Chain(commands) => format!("Chain(\n  {}\n)", (&commands[..]).join("\n  ")),
+    //             Command::DoNothing => String::new(),
+    //         }
+    //     }
+    // }
+}
+
 mod parser {
     use std::str;
     // use std::fmt;
@@ -80,6 +147,7 @@ mod parser {
         IResult,
         Needed,
     };
+    use super::lang::{Type, Value, Command};
 
     type Out<'a, T> = IResult<&'a str, T, MyVerboseError<'a>>;
 
@@ -113,19 +181,6 @@ mod parser {
             alt((tag("herself"), tag("themself"), tag("himself"))),
             |_| false,
         )(input)
-    }
-
-    #[derive(Debug)]
-    pub enum Type {
-        Int,
-    }
-
-    impl ToString for Type {
-        fn to_string(&self) -> String {
-            match self {
-                Type::Int => String::from("Int"),
-            }
-        }
     }
 
     fn parse_type<'a>(input: &'a str) -> Out<'a, Type> {
@@ -162,44 +217,6 @@ mod parser {
             ),
         )(input)
     }
-
-    #[derive(Debug)]
-    pub enum Value {
-        Int(i32),
-    }
-
-    // impl ToString for Value {
-    //     fn to_string(&self) -> String {
-    //         match self {
-    //             Value::Int(value) => format!("Int({})", value),
-    //         }
-    //     }
-    // }
-
-    // Using String because functions cannot return &str (string slices) if a String was made in a
-    // function. https://stackoverflow.com/a/43080280
-    #[derive(Debug)]
-    pub enum Command {
-        MakeVar(String, Type),
-        SetInt(String, i32),
-        Add(String, String, String),
-        Log(String),
-        Chain(Vec<Command>),
-        DoNothing,
-    }
-
-    // impl ToString for Command {
-    //     fn to_string(&self) -> String {
-    //         match self {
-    //             Command::MakeVar(name, var_type) => format!("MakeVar({} of type {})", name, var_type),
-    //             Command::SetInt(name, value) => format!("SetInt({} = {})", name, value),
-    //             Command::Add(a, b, output) => format!("Add({} + {} -> {})", a, b, output),
-    //             Command::Log(name) => format!("Log({})", name),
-    //             Command::Chain(commands) => format!("Chain(\n  {}\n)", (&commands[..]).join("\n  ")),
-    //             Command::DoNothing => String::new(),
-    //         }
-    //     }
-    // }
 
     // type Eee<'a> = fn(input: &'a str) -> Out<'a, &str>;
     // type Eee2<'a> = fn(input: &'a str) -> Out<'a, (&str, &str)>;
@@ -430,6 +447,113 @@ mod parser {
     // pub fn debug<'a>(input: &'a str) {
     //     println!("[debug] {:?}", dbg_dmp(main, "uh")(input))
     // }
+}
+
+mod interpreter {
+    use super::lang::{Type, Value, Command};
+    use std::collections::HashMap;
+
+    pub struct Error<'a> {
+        message: String,
+        trace: Vec<&'a Command>
+    }
+
+    impl<'a> Error<'a> {
+        pub fn new(command: &'a Command, msg: String) -> Error<'a> {
+            Error {
+                message: msg,
+                trace: vec![command],
+            }
+        }
+        pub fn addTrace(&mut self, command: &'a Command) {
+            self.trace.push(command);
+        }
+    }
+
+    pub struct State<'a> {
+        vars: HashMap<&'a String, Value>,
+    }
+
+    impl<'a> State<'a> {
+        pub fn new() -> State<'a> {
+            State {
+                vars: HashMap::new()
+            }
+        }
+
+        pub fn execute(&mut self, commands: &'a Vec<Command>) -> Option<Error<'a>> {
+            // Temporary variable needed to prevent borrowing something as a mutable more than
+            // once etc.
+            // Inspired by https://stackoverflow.com/a/37987197
+            let mut vars_anchor = &mut self.vars;
+            for command in commands {
+                // Give ownership to vars
+                let mut vars = vars_anchor;
+                match command {
+                    Command::MakeVar(name, var_tpe) => {
+                        if vars.contains_key(name) {
+                            return Some(Error::new(command, format!("{} has already been introduced.", name)));
+                        }
+                        vars.insert(name, match var_tpe {
+                            Type::Int => Value::Int(0)
+                        });
+                    },
+                    Command::SetInt(name, value) => {
+                        if !vars.contains_key(name) {
+                            return Some(Error::new(command, format!("Who is {}?", name)));
+                        }
+                        vars.insert(name, Value::Int(*value));
+                    },
+                    Command::Add(addend_1, addend_2, output) => {
+                        if vars.contains_key(output) {
+                            return Some(Error::new(command, format!("{} already exists and thus cannot be produced once more.", output)));
+                        }
+                        let maybeSum = match (vars.get(&addend_1), vars.get(&addend_2)) {
+                            (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(Value::Int(a + b)),
+                            (Some(a), Some(b)) => Err(format!(
+                                "{} is {}, while {} is {}, so a mash would not produce anything meaningful.",
+                                addend_1,
+                                a,
+                                addend_2,
+                                b,
+                            )),
+                            (None, None) => Err(format!("Who are {} and {}?", addend_1, addend_2)),
+                            (None, _) => Err(format!("Who is {}?", addend_1)),
+                            (_, None) => Err(format!("Who is {}?", addend_2)),
+                        };
+                        match maybeSum {
+                            Ok(sum) => {
+                                vars.insert(output, sum);
+                            },
+                            Err(errMsg) => {
+                                return Some(Error::new(command, errMsg));
+                            },
+                        };
+                    },
+                    Command::Log(name) => {
+                        if let Some(value) = vars.get(name) {
+                            match value {
+                                Value::Int(val) => println!("{}", val),
+                            }
+                        } else {
+                            return Some(Error::new(command, format!("Who is {}?", name)));
+                        }
+                    },
+                    Command::Chain(commands) => {
+                        if let Some(mut err) = self.execute(commands) {
+                            err.addTrace(command);
+                            return Some(err);
+                        }
+                        vars = &mut self.vars;
+                    },
+                    Command::DoNothing => {},
+                };
+                // Toss ownership back to vars_anchor
+                vars_anchor = vars;
+            }
+            None
+        }
+    }
 }
 
 // Relative to sheep/ (current directory)
