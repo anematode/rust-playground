@@ -118,6 +118,7 @@ mod lang {
     }
 
     impl Command {
+        // It cannot return a &'a str here because functions cannot return slices!
         pub fn name(&self, i: usize) -> String {
             format!("[#{}] {}", i, match self {
                 Command::MakeVar(..) => "MakeVar",
@@ -487,18 +488,18 @@ mod interpreter {
     use std::collections::HashMap;
 
     pub struct Error<'a> {
-        message: &'a String,
-        trace: Vec<&'a String>
+        message: &'a str,
+        trace: Vec<&'a str>
     }
 
     impl<'a> Error<'a> {
-        pub fn new(command: String, msg: String) -> Error<'a> {
+        pub fn new(command: &'a str, msg: &'a str) -> Error<'a> {
             Error {
-                message: &command,
-                trace: vec![&msg],
+                message: command,
+                trace: vec![msg],
             }
         }
-        pub fn add_trace(&mut self, command: &'a String) {
+        pub fn add_trace(&mut self, command: &'a str) {
             self.trace.push(command);
         }
     }
@@ -536,7 +537,7 @@ mod interpreter {
                 match command {
                     Command::MakeVar(name, var_tpe) => {
                         if vars.contains_key(&name) {
-                            return Err(Error::new(command.name(i), format!("{} has already been introduced.", name)));
+                            return Err(Error::new(command.name(i).as_str(), format!("{} has already been introduced.", name).as_str()));
                         }
                         vars.insert(name, match var_tpe {
                             Type::Int => Value::Int(0)
@@ -544,13 +545,13 @@ mod interpreter {
                     },
                     Command::SetInt(name, value) => {
                         if !vars.contains_key(&name) {
-                            return Err(Error::new(command.name(i), format!("Who is {}?", name)));
+                            return Err(Error::new(command.name(i).as_str(), format!("Who is {}?", name).as_str()));
                         }
                         vars.insert(name, Value::Int(*value));
                     },
                     Command::Add(addend_1, addend_2, output) => {
                         if vars.contains_key(&output) {
-                            return Err(Error::new(command.name(i), format!("{} already exists and thus cannot be produced once more.", output)));
+                            return Err(Error::new(command.name(i).as_str(), format!("{} already exists and thus cannot be produced once more.", output).as_str()));
                         }
                         let maybe_sum = match (vars.get(&addend_1), vars.get(&addend_2)) {
                             (Some(Value::Int(a)), Some(Value::Int(b))) => Ok(Value::Int(a + b)),
@@ -570,7 +571,7 @@ mod interpreter {
                                 vars.insert(&output, sum);
                             },
                             Err(err_msg) => {
-                                return Err(Error::new(command.name(i), err_msg));
+                                return Err(Error::new(command.name(i).as_str(), err_msg.as_str()));
                             },
                         };
                     },
@@ -580,12 +581,13 @@ mod interpreter {
                                 Value::Int(val) => println!("{}", val),
                             }
                         } else {
-                            return Err(Error::new(command.name(i), format!("Who is {}?", name)));
+                            return Err(Error::new(command.name(i).as_str(), format!("Who is {}?", name).as_str()));
                         }
                     },
                     Command::Chain(commands) => {
                         if let Err(mut err) = self.execute(&commands) {
-                            err.add_trace(&command.name(i));
+                            let temp = command.name(i).as_str();
+                            err.add_trace(temp);
                             return Err(err);
                         }
                         vars = &mut self.vars;
