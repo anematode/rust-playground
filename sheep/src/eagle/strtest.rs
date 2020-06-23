@@ -79,4 +79,12 @@ pub fn main() {
     let f2 = make_something_that_uses_string_pointer(&f);
     println!("{:?}", f2);
     println!("{}", f); // `f` is still usable because it was borrowed.
+
+    let str_a: &str = "string";
+    let str_b: &str = "string";
+    let string_c: String = String::from("string");
+    let string_d: String = String::from("string");
+    println!("a == b is {}", str_a == str_b);
+    println!("a == c is {}", str_a == string_c);
+    println!("d == c is {}", string_d == string_c);
 }
