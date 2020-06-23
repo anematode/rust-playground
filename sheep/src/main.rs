@@ -21,6 +21,7 @@ fn main() {
             "repl" => nommy_nom_nommy_nom::repl(),
             "eagle" => eagle::strtest::main(),
             "gp5" => eagle::gp5_perf_test::main(),
+            "silly" => eagle::silly::silly(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }

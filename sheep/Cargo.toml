@@ -11,3 +11,4 @@ regex = "1"
 lazy_static = "1.4.0"
 nom = "5.1.2"
 colored = "1.9.3"
+rand = { version = "0.7", features = ["log", "serde1"] }
