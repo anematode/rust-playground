@@ -23,6 +23,7 @@ fn main() {
             "eagle" => eagle::strtest::main(),
             "gp5" => eagle::gp5_perf_test::main(),
             "silly" => eagle::silly::silly(),
+            "find" => find::main(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
@@ -38,6 +39,7 @@ fn main() {
             - cargo run eagle
             - cargo run gp5
             - cargo run silly
+            - cargo run find
         "#);
     }
 }
