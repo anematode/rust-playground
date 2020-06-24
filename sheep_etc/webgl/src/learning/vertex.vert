@@ -1,11 +1,12 @@
 #version 140
 
 in vec2 position;
+// Pass attribute to vertex shader
+out vec2 my_attr;
 
-uniform float t;
+uniform mat4 matrix;
 
 void main() {
-    vec2 pos = position;
-    pos.x += t;
-    gl_Position = vec4(pos, 0.0, 1.0);
+    my_attr = position;
+    gl_Position = matrix * vec4(position, 0.0, 1.0);
 }

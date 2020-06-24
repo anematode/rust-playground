@@ -49,7 +49,14 @@ pub fn main() {
             &vertex_buffer,
             &indices,
             &program,
-            &uniform! {t: t},
+            &uniform! {
+                matrix: [
+                    [ t.cos(), t.sin(), 0.0, 0.0],
+                    [-t.sin(), t.cos(), 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0f32],
+                ]
+            },
             &Default::default()
         ).unwrap();
         target.finish().unwrap();
