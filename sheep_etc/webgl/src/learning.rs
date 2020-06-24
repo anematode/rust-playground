@@ -1,4 +1,4 @@
-use glium::{Surface, glutin, implement_vertex};
+use glium::{Surface, glutin, implement_vertex, uniform};
 use std::fs;
 
 #[derive(Copy, Clone)]
@@ -18,7 +18,12 @@ pub fn main() {
     let cb = glutin::ContextBuilder::new();
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
-    let program = glium::Program::from_source(&display, vertex_shader_src.as_str(), fragment_shader_src.as_str(), None).unwrap();
+    let program = glium::Program::from_source(
+        &display,
+        vertex_shader_src.as_str(),
+        fragment_shader_src.as_str(),
+        None
+    ).unwrap();
 
     // Triangle vertices
     let vertex1 = Vertex { position: [-0.5, -0.5] };
@@ -31,26 +36,33 @@ pub fn main() {
     // can be made from these vertices
     let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
 
+    let mut t: f32 = -0.5;
     event_loop.run(move |ev, _, control_flow| {
+        t += 0.0002;
+        if t > 0.5 {
+            t = -0.5;
+        }
+
         let mut target = display.draw();
         target.clear_color(0.0, 0.5, 1.0, 1.0);
-        target.draw(&vertex_buffer, &indices, &program, &glium::uniforms::EmptyUniforms,
-            &Default::default()).unwrap();
+        target.draw(
+            &vertex_buffer,
+            &indices,
+            &program,
+            &uniform! {t: t},
+            &Default::default()
+        ).unwrap();
         target.finish().unwrap();
 
         let next_frame_time = std::time::Instant::now() +
             std::time::Duration::from_nanos(16_666_667);
 
         *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
-        match ev {
-            glutin::event::Event::WindowEvent { event, .. } => match event {
-                glutin::event::WindowEvent::CloseRequested => {
-                    *control_flow = glutin::event_loop::ControlFlow::Exit;
-                    return;
-                },
-                _ => return,
-            },
-            _ => (),
+        if let glutin::event::Event::WindowEvent { event, .. } = ev {
+            if event == glutin::event::WindowEvent::CloseRequested {
+                *control_flow = glutin::event_loop::ControlFlow::Exit;
+            }
+            return;
         }
     });
 }
