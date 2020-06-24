@@ -3,6 +3,7 @@ mod hi;
 mod nom_test;
 mod nommy_nom_nommy_nom;
 mod regex_test;
+mod find;
 use std::env;
 
 fn loud() {
@@ -25,8 +26,18 @@ fn main() {
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
-        }
+        };
     } else {
-        println!("Give flag. Maybe like 'loud' or something.")
+        println!(r#"
+            Follow `cargo run` with a name:
+            - cargo run loud
+            - cargo run regex
+            - cargo run nom
+            - cargo run nt
+            - cargo run repl
+            - cargo run eagle
+            - cargo run gp5
+            - cargo run silly
+        "#);
     }
 }
