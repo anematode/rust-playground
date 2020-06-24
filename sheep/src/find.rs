@@ -112,14 +112,15 @@ fn get_input() -> String {
 
 pub fn main() {
     let mut game = Grid::new(16, 9, 20);
+    println!("\n{} Find it.\n", "The sheep hides.".bold());
     loop {
         game.print(false);
         println!("Give a row and column, such as 1A ({} guesses left)", game.guesses_left());
         let input = get_input();
+        println!("");
         let mut chars = input.chars();
         if let (Some(row_char), Some(col_char)) = (chars.next(), chars.next()) {
             if let (Some(row), Some(col)) = (ROWS.find(row_char), COLS.find(col_char)) {
-                println!("({}, {})", col, row);
                 match game.make_guess(col as Unsigned, row as Unsigned) {
                     GuessResult::Found => {
                         println!("{} You found the sheep!", "[:)]".green());
@@ -155,7 +156,7 @@ pub fn main() {
             println!("{} Give two characters.", "[your error]".red());
         }
         if game.guesses_left() <= 0 {
-            println!("{} You're out of guesses.", "[:(]".red());
+            println!("{} You're out of guesses. The evasive sheep stands victorious!", "[:(]".red());
             break;
         }
     };
