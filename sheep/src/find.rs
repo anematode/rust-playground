@@ -1,6 +1,6 @@
+use colored::*;
 use rand::Rng;
 use std::io::{self, Write};
-use colored::*;
 
 const COLS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const ROWS: &str = "1234567890";
@@ -56,7 +56,9 @@ impl Grid {
             GuessResult::Found
         } else {
             self.attempts.push((x, y));
-            GuessResult::Distance((x as f32 - self.location.0 as f32).hypot(y as f32 - self.location.1 as f32))
+            GuessResult::Distance(
+                (x as f32 - self.location.0 as f32).hypot(y as f32 - self.location.1 as f32),
+            )
         }
     }
 
@@ -83,7 +85,8 @@ impl Grid {
                     let mut cell = match self.get_cell(x, y as Unsigned) {
                         Cell::Tested => ' ',
                         Cell::Untested => '?',
-                    }.to_string();
+                    }
+                    .to_string();
                     if show_sheep {
                         cell = cell.dimmed().to_string();
                     }
@@ -115,7 +118,10 @@ pub fn main() {
     println!("\n{} Find it.\n", "The sheep hides.".bold());
     loop {
         game.print(false);
-        println!("Give a row and column, such as 1A ({} guesses left)", game.guesses_left());
+        println!(
+            "Give a row and column, such as 1A ({} guesses left)",
+            game.guesses_left()
+        );
         let input = get_input();
         println!("");
         let mut chars = input.chars();
@@ -125,40 +131,50 @@ pub fn main() {
                     GuessResult::Found => {
                         println!("{} You found the sheep!", "[:)]".green());
                         break;
-                    },
+                    }
                     GuessResult::Distance(dist) => {
-                        println!("{} {}", "[!]".yellow(), match dist {
-                            // Can't use float ranges anymore for some reason
-                            n if n <= 1.0 => {
-                                "BAAAAAAAAA!!!!! (It's almost as if the sheep is right next to you!)"
-                            },
-                            n if n <= 2.0 => "BAAAAAAAA!!!!",
-                            n if n <= 3.0 => "BAAAAAA!!!",
-                            n if n <= 5.0 => "BAAAA!!",
-                            n if n <= 10.0 => "BAAA!",
-                            n if n <= 15.0 => "Baa!",
-                            n if n <= 20.0 => "Baa.",
-                            _ => "*bah*",
-                        });
-                    },
+                        println!(
+                            "{} {}",
+                            "[!]".yellow(),
+                            match dist {
+                                // Can't use float ranges anymore for some reason
+                                n if n <= 1.0 => {
+                                    "BAAAAAAAAA!!!!! (It's almost as if the sheep is right next to you!)"
+                                }
+                                n if n <= 2.0 => "BAAAAAAAA!!!!",
+                                n if n <= 3.0 => "BAAAAAA!!!",
+                                n if n <= 5.0 => "BAAAA!!",
+                                n if n <= 10.0 => "BAAA!",
+                                n if n <= 15.0 => "Baa!",
+                                n if n <= 20.0 => "Baa.",
+                                _ => "*bah*",
+                            }
+                        );
+                    }
                     GuessResult::OutOfBoundsErr => {
                         println!("{} Out of bounds.", "[your error]".red());
-                    },
+                    }
                     GuessResult::OutOfGuessesErr => {
                         println!("{} No more guesses left.", "[your error]".red());
                         break;
-                    },
+                    }
                 }
             } else {
-                println!("{} Couldn't determine row/column from input.", "[your error]".red());
+                println!(
+                    "{} Couldn't determine row/column from input.",
+                    "[your error]".red()
+                );
             }
         } else {
             println!("{} Give two characters.", "[your error]".red());
         }
         if game.guesses_left() <= 0 {
-            println!("{} You're out of guesses. The evasive sheep stands victorious!", "[:(]".red());
+            println!(
+                "{} You're out of guesses. The evasive sheep stands victorious!",
+                "[:(]".red()
+            );
             break;
         }
-    };
+    }
     game.print(true);
 }

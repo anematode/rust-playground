@@ -1,9 +1,9 @@
 mod eagle;
+mod find;
 mod hi;
 mod nom_test;
 mod nommy_nom_nommy_nom;
 mod regex_test;
-mod find;
 use std::env;
 
 fn loud() {
@@ -29,7 +29,8 @@ fn main() {
             }
         };
     } else {
-        println!(r#"
+        println!(
+            r#"
             Follow `cargo run` with a name:
             - cargo run loud
             - cargo run regex
@@ -40,6 +41,7 @@ fn main() {
             - cargo run gp5
             - cargo run silly
             - cargo run find
-        "#);
+        "#
+        );
     }
 }
