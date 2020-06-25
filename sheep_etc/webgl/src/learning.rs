@@ -1,5 +1,6 @@
 use glium::{Surface, glutin, implement_vertex, uniform};
-use std::io::Cursor;
+use std::{io::Cursor, f32::consts::PI};
+use nalgebra::Matrix4;
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -59,32 +60,25 @@ pub fn main() {
         t += 0.005;
 
         let mut target = display.draw();
-        target.clear_color_and_depth((0.0, 0.5, 1.0, 1.0), 1.0);
-        let perspective = {
-            let (width, height) = target.get_dimensions();
-            let aspect_ratio = height as f32 / width as f32;
-
-            let fov: f32 = 3.141592 / 3.0;
-            let zfar = 1024.0;
-            let znear = 0.1;
-
-            let f = 1.0 / (fov / 2.0).tan();
-
-            [
-                [f *   aspect_ratio   ,    0.0,              0.0              ,   0.0],
-                [         0.0         ,     f ,              0.0              ,   0.0],
-                [         0.0         ,    0.0,  (zfar+znear)/(zfar-znear)    ,   1.0],
-                [         0.0         ,    0.0, -(2.0*zfar*znear)/(zfar-znear),   0.0],
-            ]
-        };
+        let (width, height) = target.get_dimensions();
+        let perspective = Matrix4::new_perspective(
+            width as f32 / height as f32,
+            PI / 3.0,
+            0.1,
+            1024.0,
+        );
+        let perspective_ref = perspective.as_ref();
         let params = glium::DrawParameters {
             depth: glium::Depth {
                 test: glium::draw_parameters::DepthTest::IfLess,
                 write: true,
                 ..Default::default()
             },
+            // Uncomment for one-sided triangles:
+            // backface_culling: glium::draw_parameters::BackfaceCullingMode::CullClockwise,
             ..Default::default()
         };
+        target.clear_color_and_depth((0.0, 0.5, 1.0, 1.0), 1.0);
         target.draw(
             &vertex_buffer,
             &index_buffer,
@@ -94,9 +88,9 @@ pub fn main() {
                     [ t.cos(), 0.0, t.sin(), 0.0],
                     [0.0, 1.0, 0.0, 0.0],
                     [-t.sin(), 0.0, t.cos(), 0.0],
-                    [0.0, 0.0, 2.0, 1.0f32],
+                    [0.0, 0.0, -2.0, 1.0f32],
                 ],
-                perspective: perspective,
+                perspective: *perspective_ref,
                 tex: &texture,
             },
             &params,
