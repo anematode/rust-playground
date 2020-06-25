@@ -24,8 +24,8 @@ pub fn main() {
     let image = load_image(&include_bytes!("./learning/texture.png")[..]);
 
     let event_loop = glutin::event_loop::EventLoop::new();
-    let wb = glutin::window::WindowBuilder::new();
-    let cb = glutin::ContextBuilder::new();
+    let wb = glutin::window::WindowBuilder::new().with_title("b en t");
+    let cb = glutin::ContextBuilder::new().with_depth_buffer(24);
     let display = glium::Display::new(wb, cb, &event_loop).unwrap();
 
     let program = glium::Program::from_source(
@@ -59,7 +59,32 @@ pub fn main() {
         t += 0.005;
 
         let mut target = display.draw();
-        target.clear_color(0.0, 0.5, 1.0, 1.0);
+        target.clear_color_and_depth((0.0, 0.5, 1.0, 1.0), 1.0);
+        let perspective = {
+            let (width, height) = target.get_dimensions();
+            let aspect_ratio = height as f32 / width as f32;
+
+            let fov: f32 = 3.141592 / 3.0;
+            let zfar = 1024.0;
+            let znear = 0.1;
+
+            let f = 1.0 / (fov / 2.0).tan();
+
+            [
+                [f *   aspect_ratio   ,    0.0,              0.0              ,   0.0],
+                [         0.0         ,     f ,              0.0              ,   0.0],
+                [         0.0         ,    0.0,  (zfar+znear)/(zfar-znear)    ,   1.0],
+                [         0.0         ,    0.0, -(2.0*zfar*znear)/(zfar-znear),   0.0],
+            ]
+        };
+        let params = glium::DrawParameters {
+            depth: glium::Depth {
+                test: glium::draw_parameters::DepthTest::IfLess,
+                write: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         target.draw(
             &vertex_buffer,
             &index_buffer,
@@ -69,11 +94,12 @@ pub fn main() {
                     [ t.cos(), 0.0, t.sin(), 0.0],
                     [0.0, 1.0, 0.0, 0.0],
                     [-t.sin(), 0.0, t.cos(), 0.0],
-                    [0.0, 0.0, 0.0, 1.0f32],
+                    [0.0, 0.0, 2.0, 1.0f32],
                 ],
+                perspective: perspective,
                 tex: &texture,
             },
-            &Default::default(),
+            &params,
         ).unwrap();
         target.finish().unwrap();
 
