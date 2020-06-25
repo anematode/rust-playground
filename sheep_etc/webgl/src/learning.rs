@@ -1,6 +1,6 @@
 use glium::{Surface, glutin, implement_vertex, uniform};
-use std::{io::Cursor, f32::consts::PI};
-use nalgebra::Matrix4;
+use std::{io::Cursor, f32::consts::PI, time::{Instant, Duration}};
+use nalgebra::{Matrix4, Vector3};
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -55,18 +55,27 @@ pub fn main() {
 
     let texture = glium::texture::Texture2d::new(&display, image).unwrap();
 
-    let mut t: f32 = -0.5;
+    let start = Instant::now();
     event_loop.run(move |ev, _, control_flow| {
-        t += 0.005;
+        let now = Instant::now();
+        let next_frame_time = now + Duration::from_nanos(16_666_667);
+        let total_elapsed = now.duration_since(start).as_secs_f32();
 
         let mut target = display.draw();
         let (width, height) = target.get_dimensions();
+        let model = Matrix4::from_euler_angles(
+            PI / 6.0 * (total_elapsed * 2.0 * PI).sin(),
+            total_elapsed * 2.0 * PI / 5.0,
+            0.0,
+        ).append_translation(&Vector3::new(0.0, 0.0, -2.0));
+        let model_ref = model.as_ref();
         let perspective = Matrix4::new_perspective(
             width as f32 / height as f32,
             PI / 3.0,
             0.1,
             1024.0,
         );
+        // https://github.com/glium/glium/issues/1681#issuecomment-375083916
         let perspective_ref = perspective.as_ref();
         let params = glium::DrawParameters {
             depth: glium::Depth {
@@ -84,12 +93,7 @@ pub fn main() {
             &index_buffer,
             &program,
             &uniform! {
-                matrix: [
-                    [ t.cos(), 0.0, t.sin(), 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [-t.sin(), 0.0, t.cos(), 0.0],
-                    [0.0, 0.0, -2.0, 1.0f32],
-                ],
+                matrix: *model_ref,
                 perspective: *perspective_ref,
                 tex: &texture,
             },
@@ -97,8 +101,6 @@ pub fn main() {
         ).unwrap();
         target.finish().unwrap();
 
-        let next_frame_time = std::time::Instant::now() +
-            std::time::Duration::from_nanos(16_666_667);
 
         *control_flow = glutin::event_loop::ControlFlow::WaitUntil(next_frame_time);
         if let glutin::event::Event::WindowEvent { event, .. } = ev {
