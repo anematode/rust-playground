@@ -3,7 +3,7 @@ use std::io::Cursor;
 
 #[derive(Copy, Clone)]
 struct Vertex {
-    position: [f32; 2],
+    position: [f32; 3],
     tex_coords: [f32; 2],
 }
 implement_vertex!(Vertex, position, tex_coords);
@@ -35,37 +35,40 @@ pub fn main() {
         None,
     ).unwrap();
 
-    // Triangle vertices
-    let vertex1 = Vertex { position: [-0.5, -0.5], tex_coords: [0.0, 0.0] };
-    let vertex2 = Vertex { position: [ 0.0,  0.5], tex_coords: [0.0, 1.0] };
-    let vertex3 = Vertex { position: [ 0.5, -0.25], tex_coords: [1.0, 0.0] };
-    let shape = vec![vertex1, vertex2, vertex3];
-
-    let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
-    // A "dummy marker" because we only have one triangle so that WebGL knows what triangles
-    // can be made from these vertices
-    let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
+    let vertices = vec![
+        Vertex { position: [-0.5, -0.5, 0.0], tex_coords: [0.0, 0.0] },
+        Vertex { position: [-0.5,  0.5, 0.0], tex_coords: [1.0, 0.0] },
+        Vertex { position: [ 0.5,  0.5, 0.5], tex_coords: [0.0, 1.0] },
+        Vertex { position: [ 0.5, -0.5, 0.0], tex_coords: [1.0, 1.0] },
+    ];
+    let vertex_buffer = glium::VertexBuffer::new(&display, &vertices).unwrap();
+    let indices: Vec<u16> = vec![
+        0, 1, 3,
+        1, 2, 3,
+    ];
+    let index_buffer = glium::IndexBuffer::new(
+        &display,
+        glium::index::PrimitiveType::TrianglesList,
+        &indices
+    ).unwrap();
 
     let texture = glium::texture::Texture2d::new(&display, image).unwrap();
 
     let mut t: f32 = -0.5;
     event_loop.run(move |ev, _, control_flow| {
-        t += 0.0002;
-        if t > 0.5 {
-            t = -0.5;
-        }
+        t += 0.005;
 
         let mut target = display.draw();
         target.clear_color(0.0, 0.5, 1.0, 1.0);
         target.draw(
             &vertex_buffer,
-            &indices,
+            &index_buffer,
             &program,
             &uniform! {
                 matrix: [
-                    [ t.cos(), t.sin(), 0.0, 0.0],
-                    [-t.sin(), t.cos(), 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
+                    [ t.cos(), 0.0, t.sin(), 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [-t.sin(), 0.0, t.cos(), 0.0],
                     [0.0, 0.0, 0.0, 1.0f32],
                 ],
                 tex: &texture,
