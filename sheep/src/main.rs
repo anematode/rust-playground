@@ -1,5 +1,6 @@
 mod eagle;
 mod find;
+mod floats;
 mod hi;
 mod nom_test;
 mod nommy_nom_nommy_nom;
@@ -24,6 +25,7 @@ fn main() {
             "gp5" => eagle::gp5_perf_test::main(),
             "silly" => eagle::silly::silly(),
             "find" => find::main(),
+            "floats" => floats::main(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
