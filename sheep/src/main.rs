@@ -26,6 +26,11 @@ fn main() {
             "silly" => eagle::silly::silly(),
             "find" => find::main(),
             "floats" => floats::main(),
+            "vecset" => {
+                let mut vec: Vec<f64> = Vec::new();
+                vec[3] = 3.0;
+                println!("{:?}", vec);
+            },
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
@@ -43,6 +48,8 @@ fn main() {
             - cargo run gp5
             - cargo run silly
             - cargo run find
+            - cargo run floats
+            - cargo run vecset
         "#
         );
     }
