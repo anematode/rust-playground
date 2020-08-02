@@ -31,7 +31,7 @@ fn main() {
                 let mut vec: Vec<f64> = Vec::new();
                 vec[3] = 3.0;
                 println!("{:?}", vec);
-            },
+            }
             "timmath" => timmath::main(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
