@@ -5,6 +5,7 @@ mod hi;
 mod nom_test;
 mod nommy_nom_nommy_nom;
 mod regex_test;
+mod timmath;
 use std::env;
 
 fn loud() {
@@ -31,6 +32,7 @@ fn main() {
                 vec[3] = 3.0;
                 println!("{:?}", vec);
             },
+            "timmath" => timmath::main(),
             _ => {
                 println!("uhhh am confuse but nonetheless... {:?}", args);
             }
@@ -50,6 +52,7 @@ fn main() {
             - cargo run find
             - cargo run floats
             - cargo run vecset
+            - cargo run timmath
         "#
         );
     }

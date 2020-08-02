@@ -35,11 +35,11 @@ impl Grid {
     fn new(width: Unsigned, height: Unsigned, max_attempts: usize) -> Grid {
         let mut rng = rand::thread_rng();
         Grid {
-            width: width,
-            height: height,
+            width,
+            height,
             location: (rng.gen_range(0, width), rng.gen_range(0, height)),
             attempts: Vec::with_capacity(max_attempts),
-            max_attempts: max_attempts,
+            max_attempts,
         }
     }
 
@@ -99,7 +99,7 @@ impl Grid {
     }
 }
 
-fn get_input() -> String {
+pub fn get_input() -> String {
     print!("> ");
     io::stdout()
         .flush()
